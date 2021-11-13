@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.VFX;
 
 namespace NHSRemont
 {
@@ -15,16 +17,27 @@ namespace NHSRemont
             DEBRIS_MEDIUM,
             DEBRIS_LARGE
         }
-        private readonly Dictionary<PhysObjectType, LinkedList<Rigidbody>> rigidbodies = new Dictionary<PhysObjectType, LinkedList<Rigidbody>>();
         private readonly Dictionary<PhysObjectType, int> maxObjectsAmount = new Dictionary<PhysObjectType, int>()
         {
             {PhysObjectType.NORMAL, -1},
             {PhysObjectType.DEBRIS_SMALL, 150},
             {PhysObjectType.DEBRIS_MEDIUM, 300},
-            {PhysObjectType.DEBRIS_LARGE, 1500}
+            {PhysObjectType.DEBRIS_LARGE, 750}
         };
+        private readonly Dictionary<PhysObjectType, LinkedList<Rigidbody>> rigidbodies = new Dictionary<PhysObjectType, LinkedList<Rigidbody>>();
+        private readonly Dictionary<Rigidbody, float> rigidbodyCrossAreasCache = new Dictionary<Rigidbody, float>();
 
         public Action<ExplosionInfo> onExplosion;
+
+        [SerializeField]
+        private VisualEffect explosionVFX;
+        public AnimationCurve craterShape = new AnimationCurve(new []
+        {
+            new Keyframe(0f, -0.03f, 0f, 0f),
+            new Keyframe(0.17f, 0.009f, 0f, 0f),
+            new Keyframe(0.205f, 0f, 0f, 0f),
+            new Keyframe(1f, 0f, 0f, 0f)
+        });
 
         private void Awake()
         {
@@ -55,10 +68,12 @@ namespace NHSRemont
                 Transform camTransform = Camera.main.transform;
                 if (Physics.Raycast(camTransform.position, camTransform.forward, out RaycastHit hit, 4000f))
                 {
-                    float blastRadius = Input.GetKey(KeyCode.LeftShift) ? 100f : 20f;
-                    float blastForce = Input.GetKey(KeyCode.LeftShift) ? 60000f : 12000f;
+                    float yield = 0.052f;
+                    if (Input.GetKey(KeyCode.LeftShift)) yield = 1f;
+                    else if (Input.GetKey(KeyCode.Tab)) yield = 6f;
+                    else if (Input.GetKey(KeyCode.X)) yield = 500f;
                     
-                    CreateExplosion(new ExplosionInfo(hit.point, blastRadius, blastForce, 4.3f));
+                    CreateExplosion(new ExplosionInfo(hit.point, yield, 4.3f));
                 }
             }
         }
@@ -75,6 +90,7 @@ namespace NHSRemont
                     var node = rbCollection.First;
                     Destroy(node.Value.gameObject);
                     rbCollection.Remove(node);
+                    RemoveRigidbodyFromCaches(node.Value);
                 }
             }
 
@@ -103,7 +119,10 @@ namespace NHSRemont
                     var next = node.Next;
                     Rigidbody rb = node.Value;
                     if (rb == null) //destroyed
+                    {
                         rbCollection.Remove(node);
+                        RemoveRigidbodyFromCaches(rb);
+                    }
                     else
                         output.Add(rb);
                     
@@ -128,7 +147,10 @@ namespace NHSRemont
                     var next = node.Next;
                     Rigidbody rb = node.Value;
                     if (rb == null) //destroyed
+                    {
                         rbCollection.Remove(node);
+                        RemoveRigidbodyFromCaches(rb);
+                    }
                     else if(!rb.IsSleeping())
                         output.Add(rb);
                     
@@ -149,10 +171,43 @@ namespace NHSRemont
             {
                 if ((rb.position - explosionInfo.position).sqrMagnitude <= blastRadiusSqr)
                 {
+                    if(rb.tag.Equals("Player")) continue; //TODO remove once explosion testing is gone
                     explosionInfo.ApplyToRigidbody(rb);
                 }
             }
             onExplosion?.Invoke(explosionInfo);
+            GameObject explosionEffect = Instantiate(explosionVFX.gameObject);
+            explosionEffect.transform.position = explosionInfo.position;
+            float scale = explosionInfo.blastRadius / 320f;
+            explosionEffect.transform.localScale = Vector3.one * scale;
+            explosionEffect.GetComponent<VisualEffect>().Play();
+        }
+
+        private void RemoveRigidbodyFromCaches(Rigidbody rb)
+        {
+            rigidbodyCrossAreasCache.Remove(rb);
+        }
+
+        /// <summary>
+        /// Estimates a cross-sectional surface area for this rigidbody.
+        /// </summary>
+        public float EstimateCrossSection(Rigidbody rb)
+        {
+            if (rigidbodyCrossAreasCache.ContainsKey(rb))
+                return rigidbodyCrossAreasCache[rb];
+            
+            float maxX = rb.ClosestPointOnBounds(rb.position + rb.transform.right * 1000f).x;
+            float minX = rb.ClosestPointOnBounds(rb.position - rb.transform.right * 1000f).x;
+            float maxY = rb.ClosestPointOnBounds(rb.position + rb.transform.up * 1000f).y;
+            float minY = rb.ClosestPointOnBounds(rb.position - rb.transform.up * 1000f).y;
+            float maxZ = rb.ClosestPointOnBounds(rb.position + rb.transform.forward * 1000f).z;
+            float minZ = rb.ClosestPointOnBounds(rb.position - rb.transform.forward * 1000f).z;
+            
+            float longestSide = Mathf.Max(Mathf.Abs(maxX - minX), Mathf.Abs(maxY - minY), Mathf.Abs(maxZ - minZ));
+            float area = longestSide; //let's just assume that the area is equal to the longest side. For human: about 1.8m^2, for 20m tall tree: 20m^2, etc.
+
+            rigidbodyCrossAreasCache[rb] = area;
+            return area;
         }
     }
 }

@@ -152,6 +152,49 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cc1adf420df42dfa633559fcddf0a04, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  explosionVFX: {fileID: 5000118948857214129, guid: a840d9c22b2c6a94c8150af2976cd4cf, type: 3}
+  craterShape:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: -0.03
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.17
+      value: 0.009
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.205
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!4 &489352848
 Transform:
   m_ObjectHideFlags: 0
@@ -373,31 +416,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainCharredLayer: 1
-  explosionPowerForFullyCharred: 10000
-  charringCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0041656494
-      value: 0
-      inSlope: 2.7042322
-      outSlope: 2.7042322
-      tangentMode: 0
-      weightedMode: 2
-      inWeight: 0
-      outWeight: 0.13749999
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  explosionIntensityForFullyCharred: 14000
 --- !u!1 &863115948
 GameObject:
   m_ObjectHideFlags: 0
@@ -540,31 +559,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainCharredLayer: 1
-  explosionPowerForFullyCharred: 10000
-  charringCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0041656494
-      value: 0
-      inSlope: 2.7042322
-      outSlope: 2.7042322
-      tangentMode: 0
-      weightedMode: 2
-      inWeight: 0
-      outWeight: 0.13749999
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  explosionIntensityForFullyCharred: 14000
 --- !u!1 &1007683928
 GameObject:
   m_ObjectHideFlags: 0
@@ -854,31 +849,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainCharredLayer: 1
-  explosionPowerForFullyCharred: 10000
-  charringCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0041656494
-      value: 0
-      inSlope: 2.7042322
-      outSlope: 2.7042322
-      tangentMode: 0
-      weightedMode: 2
-      inWeight: 0
-      outWeight: 0.13749999
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  explosionIntensityForFullyCharred: 14000
 --- !u!1 &1520184413
 GameObject:
   m_ObjectHideFlags: 0
@@ -1021,31 +992,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainCharredLayer: 1
-  explosionPowerForFullyCharred: 10000
-  charringCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0041656494
-      value: 0
-      inSlope: 2.7042322
-      outSlope: 2.7042322
-      tangentMode: 0
-      weightedMode: 2
-      inWeight: 0
-      outWeight: 0.13749999
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  explosionIntensityForFullyCharred: 14000
 --- !u!1 &1578634936
 GameObject:
   m_ObjectHideFlags: 0
@@ -1188,31 +1135,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainCharredLayer: 1
-  explosionPowerForFullyCharred: 10000
-  charringCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0041656494
-      value: 0
-      inSlope: 2.7042322
-      outSlope: 2.7042322
-      tangentMode: 0
-      weightedMode: 2
-      inWeight: 0
-      outWeight: 0.13749999
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  explosionIntensityForFullyCharred: 14000
 --- !u!1 &1821503297
 GameObject:
   m_ObjectHideFlags: 0
@@ -1450,28 +1373,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   terrainCharredLayer: 1
-  explosionPowerForFullyCharred: 10000
-  charringCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0041656494
-      value: 0
-      inSlope: 2.7042322
-      outSlope: 2.7042322
-      tangentMode: 0
-      weightedMode: 2
-      inWeight: 0
-      outWeight: 0.13749999
-    - serializedVersion: 3
-      time: 1
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
+  explosionIntensityForFullyCharred: 14000

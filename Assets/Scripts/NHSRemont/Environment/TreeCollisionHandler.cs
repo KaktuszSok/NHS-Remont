@@ -5,7 +5,10 @@ namespace NHSRemont.Environment
     [RequireComponent(typeof(Collider))]
     public class TreeCollisionHandler : MonoBehaviour
     {
-        private const float maxWithstoodImpulseToMassRatio = 3f; //if impulse.magnitude divided by treeMass is greater than this, the tree will be knocked down
+        /// <summary>
+        /// if impulse.magnitude divided by treeMass is greater than this, the tree will be knocked down
+        /// </summary>
+        public const float maxWithstoodVelocityChange = 3.5f;
         private TreeOptimiser owner;
         private Transform collisionObjectTransform;
         /// <summary>
@@ -17,7 +20,7 @@ namespace NHSRemont.Environment
         {
             Vector3 impulse = collision.impulse;
             float ratioSqr = (impulse / treeMass).sqrMagnitude;
-            if (ratioSqr > maxWithstoodImpulseToMassRatio * maxWithstoodImpulseToMassRatio)
+            if (ratioSqr > maxWithstoodVelocityChange * maxWithstoodVelocityChange)
             {
                 var fallingTrees = owner.DestroyTreesNear(collisionObjectTransform.position, 0.1f, true); //should be just 1 object
                 foreach (Rigidbody fallingTree in fallingTrees)
@@ -33,6 +36,19 @@ namespace NHSRemont.Environment
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Checks whether the given explosion should knock down the given tree
+        /// </summary>
+        public static bool DoesExplosionFellTree(ExplosionInfo explosionInfo, Vector3 treePosition, float treeHeight, float treeMass)
+        {
+            float sqrDist = (treePosition - explosionInfo.position).sqrMagnitude;
+            if (sqrDist > explosionInfo.blastRadius*explosionInfo.blastRadius || explosionInfo.blastRadius < treeHeight) //tree must be within explosion radius, and the explosion radius must be at least the tree's height
+                return false;
+
+            float impulse = explosionInfo.CalculateImpulse(sqrDist, treeHeight, treeMass);
+            return impulse/treeMass >= maxWithstoodVelocityChange;
         }
 
         /// <summary>

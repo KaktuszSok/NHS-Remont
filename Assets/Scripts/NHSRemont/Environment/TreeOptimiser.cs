@@ -373,26 +373,15 @@ namespace NHSRemont.Environment
         /// Destroys all trees within a radius of a specific point
         /// </summary>
         /// <returns>List of rigidbodies, one for each falling tree</returns>
-        public List<Rigidbody> DestroyTreesNear(Vector3 point, float radius, bool spawnFallingTrees = true)
+        public List<Rigidbody> DestroyTreesNear(Vector3 point, float radius, bool spawnFallingTrees = true, Predicate<TreeInstance> shouldKnockOver = null)
         {
             //calculate bounds to search in chunk- and group-coordinates
-            Vector3 minPoint = new Vector3(point.x - radius, point.y, point.z - radius);
-            Vector3 maxPoint = new Vector3(point.x + radius, point.y, point.z + radius);
-            (int x, int z) chunkPosMin = GetChunkPosAt(minPoint);
-            (int x, int z) chunkPosMax = GetChunkPosAt(maxPoint);
-            (int x, int z) groupPosMin = GetGroupPosAt(minPoint);
-            (int x, int z) groupPosMax = GetGroupPosAt(maxPoint);
-            
-            chunkPosMin.x = Math.Max(0, chunkPosMin.x);
-            chunkPosMin.z = Math.Max(0, chunkPosMin.z);
-            chunkPosMax.x = Math.Min(chunksX - 1, chunkPosMax.x);
-            chunkPosMax.z = Math.Min(chunksZ - 1, chunkPosMax.z);
-            
-            groupPosMin.x = Math.Max(0, groupPosMin.x);
-            groupPosMin.z = Math.Max(0, groupPosMin.z);
-            groupPosMax.x = Math.Min(chunkGroups.GetLength(0) - 1, groupPosMax.x);
-            groupPosMax.z = Math.Min(chunkGroups.GetLength(1) - 1, groupPosMax.z);
-            
+            CalculateChunkAndGroupSearchBounds(point, radius,
+                out (int x, int z) chunkPosMin,
+                out (int x, int z) chunkPosMax,
+                out (int x, int z) groupPosMin,
+                out (int x, int z) groupPosMax);
+
             //get bounding box local to normalised terrain space
             Vector3 terrainSize = terrain.terrainData.size;
             point -= terrainPos;
@@ -401,8 +390,15 @@ namespace NHSRemont.Environment
                 (point.x + radius) / terrainSize.x, (point.z + radius) / terrainSize.z
             );
 
-            List<Rigidbody> fallingTrees = new List<Rigidbody>();
+            //set up predicate if it's null
+            if (shouldKnockOver == null)
+            {
+                float sqrRadius = radius * radius;
+                //get tree position in world space (relative to terrain position, as our point is now also relative to terrain position) and compare distance to point against radius
+                shouldKnockOver = tree => (LocalToTerrainPos(tree.position) - point).sqrMagnitude <= sqrRadius;
+            }
 
+            List<Rigidbody> fallingTrees = new List<Rigidbody>();
             //loop chunks
             for (int type = 0; type < typesCount; type++)
             {
@@ -415,13 +411,10 @@ namespace NHSRemont.Environment
                         int amt = nearbyTrees.Count;
                         for (int i = 0; i < amt; i++) //loop through all trees
                         {
-                            var treeAndPos = nearbyTrees[i];
-                            //get tree position in world space (relative to terrain position, as our point is now also relative to terrain position)
-                            Vector3 treeWorldPos = LocalToTerrainPos(treeAndPos.element.position);
-
-                            if ((treeWorldPos - point).sqrMagnitude < radius * radius) //within radius
+                            (TreeInstance treeInstance, Vector2 position) = nearbyTrees[i];
+                            if (shouldKnockOver(treeInstance)) //check predicate
                             {
-                                Maybe<TreeInstance> tree = treeChunk.RemoveTree(treeAndPos.position);
+                                Maybe<TreeInstance> tree = treeChunk.RemoveTree(position);
                                 if (spawnFallingTrees && tree.hasValue)
                                 {
                                     fallingTrees.Add(SpawnFallingTree(tree.value));
@@ -447,6 +440,25 @@ namespace NHSRemont.Environment
             }
 
             PhysicsManager.instance.RegisterRigidbodies(fallingTrees, PhysicsManager.PhysObjectType.DEBRIS_LARGE);
+            return fallingTrees;
+        }
+
+        /// <summary>
+        /// Knocks over trees near the explosion, if it is strong enough
+        /// </summary>
+        /// <returns>A list of rigidbodies, one for each falling tree</returns>
+        public List<Rigidbody> ApplyExplosionToNearbyTrees(ExplosionInfo explosionInfo)
+        {
+            var fallingTrees = DestroyTreesNear(explosionInfo.position, explosionInfo.blastRadius*1.3f, true,
+                tree =>
+                    TreeCollisionHandler.DoesExplosionFellTree(
+                        explosionInfo, 
+                        LocalToWorldPos(tree.position),
+                        treeSizes[tree.prototypeIndex].y*tree.heightScale,
+                        CalculateTreeMass(tree)
+                    )
+                );
+            explosionInfo.ApplyToRigidbodies(fallingTrees);
             return fallingTrees;
         }
 
@@ -610,6 +622,31 @@ namespace NHSRemont.Environment
             treeWorldPos.y *= terrainSize.y;
             treeWorldPos.z *= terrainSize.z;
             return treeWorldPos;
+        }
+        
+        /// <summary>
+        /// Calculates the search bounds for chunks and groups within a radius of a specified point.
+        /// Looping from minimum to maximum will never cause index OOB exceptions.
+        /// </summary>
+        private void CalculateChunkAndGroupSearchBounds(Vector3 point, float radius, out (int x, int z) chunkPosMin,
+            out (int x, int z) chunkPosMax, out (int x, int z) groupPosMin, out (int x, int z) groupPosMax)
+        {
+            Vector3 minPoint = new Vector3(point.x - radius, point.y, point.z - radius);
+            Vector3 maxPoint = new Vector3(point.x + radius, point.y, point.z + radius);
+            chunkPosMin = GetChunkPosAt(minPoint);
+            chunkPosMax = GetChunkPosAt(maxPoint);
+            groupPosMin = GetGroupPosAt(minPoint);
+            groupPosMax = GetGroupPosAt(maxPoint);
+
+            chunkPosMin.x = Math.Max(0, chunkPosMin.x);
+            chunkPosMin.z = Math.Max(0, chunkPosMin.z);
+            chunkPosMax.x = Math.Min(chunksX - 1, chunkPosMax.x);
+            chunkPosMax.z = Math.Min(chunksZ - 1, chunkPosMax.z);
+
+            groupPosMin.x = Math.Max(0, groupPosMin.x);
+            groupPosMin.z = Math.Max(0, groupPosMin.z);
+            groupPosMax.x = Math.Min(chunkGroups.GetLength(0) - 1, groupPosMax.x);
+            groupPosMax.z = Math.Min(chunkGroups.GetLength(1) - 1, groupPosMax.z);
         }
 
         private float CalculateTreeMass(TreeInstance tree)

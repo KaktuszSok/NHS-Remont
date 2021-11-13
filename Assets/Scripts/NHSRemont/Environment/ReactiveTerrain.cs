@@ -16,13 +16,20 @@ namespace NHSRemont.Environment
 
         [SerializeField, Tooltip("The layer to apply when an explosion chars the surrounding terrain")]
         private int terrainCharredLayer;
-        [SerializeField, Tooltip("How powerful does an explosion have to be to fully char the terrain at the explosion's very centre?")]
-        private float explosionPowerForFullyCharred = 6000f;
+        [SerializeField, Tooltip("How powerful does an explosion have to be to fully char the terrain at the explosion's very centre? Measured in intensity of shockwave at ground texel point.")]
+        private float explosionIntensityForFullyCharred = 14000f;
+        /// <summary>
+        /// A multiplier to the required explosion intensity to remove grass compared to charring the land 
+        /// </summary>
         private const float detailsRemovalDifficulty = 0.5f;
+        /// <summary>
+        /// A multiplier to the depth of craters on this terrain
+        /// </summary>
+        private const float terrainDeformationFactor = 1f;
 
-        [SerializeField]
-        private AnimationCurve charringCurve =
-            new AnimationCurve(new[] {new Keyframe(0f, 0f), new Keyframe(1f, 1f, 0f, 0f)});
+        // [SerializeField]
+        // private AnimationCurve charringCurve =
+        //     new AnimationCurve(new[] {new Keyframe(0f, 0f), new Keyframe(1f, 1f, 0f, 0f)});
 
         private void Start()
         {
@@ -40,7 +47,7 @@ namespace NHSRemont.Environment
 
         public void OnExplosion(ExplosionInfo explosionInfo)
         {
-            explosionInfo.ApplyToRigidbodies(treeOptimiser.DestroyTreesNear(explosionInfo.position, explosionInfo.blastRadius));
+            treeOptimiser.ApplyExplosionToNearbyTrees(explosionInfo);
             ModifyTerrain(explosionInfo);
         }
 
@@ -51,11 +58,11 @@ namespace NHSRemont.Environment
         {
             DoCharring(explosionInfo);
             RemoveGrass(explosionInfo);
+            DeformTerrain(explosionInfo);
         }
 
         private void DoCharring(ExplosionInfo explosionInfo)
         {
-            float maxCharring = explosionInfo.power / explosionPowerForFullyCharred;
             int layersCount = terrainData.terrainLayers.Length;
             var (min, max, coords) = GetMapCoordinatesInSphere(explosionInfo.position, explosionInfo.blastRadius,
                 terrainData.alphamapWidth, terrainData.alphamapHeight);
@@ -68,14 +75,14 @@ namespace NHSRemont.Environment
             {
                 int x = coordAndDist.x - min.x;
                 int z = coordAndDist.z - min.z;
-                float dist = Mathf.Sqrt(coordAndDist.sqrDist);
-                float factor = dist / explosionInfo.blastRadius;
+                float intensity = explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f);
+                float factor = intensity / (explosionIntensityForFullyCharred);
                 
                 float previousCharring = alphamap[z, x, terrainCharredLayer]; //charring before this explosion
                 if(previousCharring >= 1) continue;
-                float charringAdded = Mathf.Lerp(maxCharring, 0f, factor); //amount of charring this explosion will cause at this coordinate
+                float charringAdded = Mathf.Lerp(0f, 1f, factor); //amount of charring this explosion will cause at this coordinate
                 charringAdded = Mathf.Clamp01(charringAdded);
-                charringAdded = charringCurve.Evaluate(charringAdded);
+                //charringAdded = charringCurve.Evaluate(charringAdded);
                 
                 float totalCharring = alphamap[z, x, terrainCharredLayer] = Mathf.Clamp01(previousCharring + charringAdded); //add charring
                 
@@ -97,8 +104,6 @@ namespace NHSRemont.Environment
 
         private void RemoveGrass(ExplosionInfo explosionInfo)
         {
-            float maxDegrassing = explosionInfo.power / (explosionPowerForFullyCharred*detailsRemovalDifficulty);
-            
             var (min, max, coords) = GetMapCoordinatesInSphere(explosionInfo.position, explosionInfo.blastRadius,
                 terrainData.detailWidth, terrainData.detailHeight);
             int deltaX = max.x - min.x;
@@ -118,10 +123,9 @@ namespace NHSRemont.Environment
             {
                 int x = coordAndDist.x - min.x;
                 int z = coordAndDist.z - min.z;
-                float dist = Mathf.Sqrt(coordAndDist.sqrDist);
-                float factor = dist / explosionInfo.blastRadius;
+                float factor = explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f) / (explosionIntensityForFullyCharred*detailsRemovalDifficulty);
                 
-                float degrassing = Mathf.Lerp(maxDegrassing, 0f, factor); //amount of degrassing this explosion should cause at this coordinate
+                float degrassing = Mathf.Lerp(0f, 1f, factor); //amount of degrassing this explosion should cause at this coordinate
                 foreach (var detailMap in detailMaps)
                 {
                     detailMap.details[z, x] = (int) Mathf.Clamp(detailMap.details[z, x] - (degrassing * 10), 0, 255);
@@ -131,6 +135,33 @@ namespace NHSRemont.Environment
             {
                 terrainData.SetDetailLayer(min.x, min.z, detailMap.layer, detailMap.details);
             }
+        }
+
+        private void DeformTerrain(ExplosionInfo explosionInfo)
+        {
+            var (min, max, coords) = GetMapCoordinatesInSphere(explosionInfo.position, explosionInfo.blastRadius,
+                terrainData.heightmapResolution, terrainData.heightmapResolution);
+            int deltaX = max.x - min.x;
+            int deltaZ = max.z - min.z;
+            if(deltaX < 0 || deltaZ < 0) return; //fully out of bounds
+
+            float blastRadiusSqr = explosionInfo.blastRadius*explosionInfo.blastRadius;
+            float[,] heightmap = terrainData.GetHeights(min.x, min.z, deltaX+1, deltaZ + 1);
+            foreach ((int x, int z, float sqrDist) coordAndDist in coords)
+            {
+                int x = coordAndDist.x - min.x;
+                int z = coordAndDist.z - min.z;
+                float previousHeight = heightmap[z, x]; //height before this explosion
+                if(previousHeight <= 0) continue;
+
+                float factor = PhysicsManager.instance.craterShape.Evaluate(Mathf.Sqrt(coordAndDist.sqrDist / blastRadiusSqr));
+                float heightDelta = terrainDeformationFactor*factor*explosionInfo.blastRadius; //amount of vertical displacement this explosion will cause at this coordinate
+                heightDelta /= terrainSize.y; //make height delta be in normalised space
+                
+                heightmap[z, x] = Mathf.Clamp01(previousHeight + heightDelta); //modify heightmap
+            }
+
+            terrainData.SetHeights(min.x, min.z, heightmap);
         }
         
         /// <summary>
