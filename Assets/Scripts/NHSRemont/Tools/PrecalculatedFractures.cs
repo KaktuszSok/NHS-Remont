@@ -15,7 +15,8 @@ namespace NHSRemont.Tools
             var targets = GetComponentsInChildren<FractureThis>(true);
             foreach (FractureThis target in targets)
             {
-                target.PrepareFracture();
+                if(target.enabled)
+                    target.PrepareFracture();
             }
         }
 

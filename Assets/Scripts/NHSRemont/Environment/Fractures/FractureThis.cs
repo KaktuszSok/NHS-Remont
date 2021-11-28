@@ -1,22 +1,61 @@
+using System;
 using System.Collections.Generic;
 using NHSRemont.Gameplay;
 using NHSRemont.Networking;
-using Unity.Netcode;
+using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Random = System.Random;
 
 namespace NHSRemont.Environment.Fractures
-{
-    [RequireComponent(typeof(NetworkObject))]
-    public class FractureThis : NetworkBehaviour
+{ 
+    public class FractureThis : MonoBehaviourPunCallbacks, IPunObservable
     {
+        /// <summary>
+        /// The state of a loose or destroyed chunk
+        /// </summary>
+        [Serializable]
         public struct ChunkState
         {
             public bool destroyed;
             public NetworkedPhysicsState physicsState;
+
+            public void Send(PhotonStream stream)
+            {
+                stream.SendNext(destroyed);
+                if(!destroyed)
+                    physicsState.Send(stream);
+            }
+
+            public void Receive(PhotonStream stream)
+            {
+                destroyed = stream.ReceiveNext<bool>();
+                if(!destroyed)
+                    physicsState.Receive(stream);
+            }
+
+            public void Apply(ChunkNode chunk, float lag)
+            {
+                if (destroyed)
+                {
+                    if (chunk != null)
+                    {
+                        Destroy(chunk.gameObject);
+                    }
+                    return;
+                }
+
+                if (chunk.frozen)
+                {
+                    chunk.Unfreeze();
+                }
+
+                chunk.syncedRb.ReceivePhysicsState(physicsState, lag);
+            }
         }
         
-        [SerializeField] private Anchor anchor = Anchor.Bottom;
+        [SerializeField] public Anchor anchor = Anchor.Bottom;
         [SerializeField] private int chunks = 15;
         [SerializeField] private float density = 2400;
         [Tooltip("How much impulse per unit mass can chunks withstand before being broken off?")]
@@ -27,6 +66,9 @@ namespace NHSRemont.Environment.Fractures
 
         [SerializeField]
         private PhysicsManager.PhysObjectType fragmentsCategory = PhysicsManager.PhysObjectType.DEBRIS_MEDIUM;
+
+        [Tooltip("If true, this object will not be merged into a combined fracture graph")]
+        public bool independent = true;
         
         //runtime
         private new Collider collider;
@@ -34,111 +76,193 @@ namespace NHSRemont.Environment.Fractures
         [SerializeField, HideInInspector]
         private ChunkGraphManager chunksGraph;
         public ChunkNode[] allChunks;
-        public readonly NetworkVariable<bool> fractured = new();
+        public bool fractured { get; private set; }
+        private FractureThis combinedFracture = null; //"this" if independent
+        private readonly List<FractureThis> mergedChildren = new();
         
         //network-only
-        private bool isServer;
         public ChunkState[] chunkStates;
 
         private void Awake()
         {
-            if(NetworkManager.Singleton == null)
+            if(!enabled)
                 return;
-
-            isServer = IsServer;
+            
             collider = GetComponent<Collider>();
-            Vector3 scale = transform.lossyScale;
-            float volume = GetComponent<MeshFilter>().sharedMesh.Volume() * scale.x * scale.y * scale.z;
-            mass = volume * density;
-            
-            allChunks = chunksGraph.GetComponentsInChildren<ChunkNode>(true);
-            chunkStates = new ChunkState[allChunks.Length];
-            fractured.OnValueChanged += OnFracturedChanged;
-            
-            chunksGraph.gameObject.SetActive(true);
-            chunksGraph.gameObject.SetActive(false);
         }
 
         private void Start()
         {
-            if(isServer)
-                PhysicsManager.instance.onExplosion += OnExplosion;
-        }
-
-        private void FixedUpdate()
-        {
-            if (isServer && fractured.Value)
+            if (photonView == null)
             {
-                List<int> changedIndices = new List<int>();
-                List<ChunkState> changedStates = new List<ChunkState>();
-                for (var i = 0; i < allChunks.Length; i++)
+                Destroy(this);
+                return;
+            }
+            
+            Vector3 scale = transform.lossyScale;
+            MeshFilter mf = GetComponent<MeshFilter>();
+            if (mf)
+            {
+                float volume = mf.sharedMesh.Volume() * scale.x * scale.y * scale.z;
+                mass = volume * density;
+            }
+
+            //combine child graphs
+            if (independent)
+            {
+                Combine();
+            }
+            
+            chunksGraph.gameObject.SetActive(false);
+
+            PhysicsManager.instance.onExplosion += OnExplosion;
+        }
+        
+        private void Combine()
+        {
+            List<ChunkNode> combinedChunks = new();
+            mergedChildren.Clear();
+            List<ChunkGraphManager> mergedGraphs = new();
+            if(collider != null && collider.enabled)
+                AddGraph(this);
+            CombineChildGraphs(transform);
+            if (mergedChildren.Count > 0)
+                RecalculateCombinedMesh();
+            combinedFracture = this;
+
+            void CombineChildGraphs(Transform parent)
+            {
+                foreach (Transform child in parent)
                 {
-                    ChunkState prevState = chunkStates[i];
-                    if(prevState.destroyed)
+                    FractureThis fracture = child.GetComponent<FractureThis>();
+                    if (fracture == null || !fracture.enabled)
+                    {
+                        CombineChildGraphs(child);
                         continue;
+                    }
+                    if (fracture.independent) continue;
+                    if (fracture.insideMaterial != insideMaterial || fracture.outsideMaterial != outsideMaterial) continue;
+
+                    fracture.combinedFracture = this;
+                    mergedChildren.Add(fracture);
+                    AddGraph(fracture);
+                    CombineChildGraphs(child);
+                }
+            }
+            void AddGraph(FractureThis fracture)
+            {
+                if (fracture.chunksGraph != null)
+                {
+                    combinedChunks.AddRange(fracture.chunksGraph.GetAllNodes());
+                    mergedGraphs.Add(fracture.chunksGraph);
+                }
+            }
+            void RecalculateCombinedMesh()
+            {
+                List<MeshFilter> meshes = new List<MeshFilter>();
+                MeshFilter thisMesh = GetComponent<MeshFilter>();
+                if(thisMesh && GetComponent<MeshRenderer>().enabled)
+                    meshes.Add(thisMesh);
+                int totalVerts = 0;
+                for (int i = 0; i < mergedChildren.Count; i++)
+                {
+                    MeshFilter mesh = mergedChildren[i].GetComponent<MeshFilter>();
+                    if (mesh)
+                    {
+                        meshes.Add(mesh);
+                        totalVerts += mesh.sharedMesh.vertexCount;
+                    }
+                }
+
+                MeshRenderer combinedRend = gameObject.GetOrAddComponent<MeshRenderer>();
+                MeshFilter combinedFilter = gameObject.GetOrAddComponent<MeshFilter>();
+                Mesh combinedMesh = new Mesh();
+                if(totalVerts > ushort.MaxValue)
+                    combinedMesh.indexFormat = IndexFormat.UInt32;
+                int submeshesCount = 0;
+
+                if (meshes.Count > 0)
+                {
+                    submeshesCount = meshes[0].sharedMesh.subMeshCount;
+                }
+                CombineInstance[][] instances = new CombineInstance[submeshesCount][];
+                CombineInstance[] submeshes = new CombineInstance[submeshesCount];
+                for (int sub = 0; sub < submeshesCount; sub++)
+                {
+                    instances[sub] = new CombineInstance[meshes.Count];
+                    for (int i = 0; i < meshes.Count; i++)
+                    {
+                        Mesh unfracturedMesh = meshes[i].sharedMesh;
+                        instances[sub][i] = new CombineInstance
+                        {
+                            mesh = unfracturedMesh,
+                            transform = meshes[i].transform.localToWorldMatrix,
+                            subMeshIndex = sub
+                        };
                     
-                    ChunkNode chunk = allChunks[i];
-                    if (chunk == null) //chunk got destroyed
-                    {
-                        chunkStates[i].destroyed = true;
-                        changedIndices.Add(i);
-                        changedStates.Add(chunkStates[i]);
-                        continue;
+                        if(sub > 0) continue; //only do these once per unfractured mesh:
+                        
+                        MeshRenderer rend = meshes[i].GetComponent<MeshRenderer>();
+                        rend.enabled = false;
+                        if (i == 0)
+                        {
+                            combinedRend.sharedMaterials = rend.sharedMaterials;
+                        }
                     }
 
-                    if (chunk.frozen)
+                    Mesh submesh = new Mesh();
+                    if(totalVerts > ushort.MaxValue)
+                        submesh.indexFormat = IndexFormat.UInt32;
+                    submesh.CombineMeshes(instances[sub], true, true);
+                    submeshes[sub] = new CombineInstance
                     {
-                        continue;
-                    }
-
-                    if (chunkStates[i].physicsState.velocity == Vector3.zero && allChunks[i].rb.velocity == Vector3.zero
-                    && chunkStates[i].physicsState.angularVelocity == Vector3.zero && allChunks[i].rb.angularVelocity == Vector3.zero)
-                    {
-                        continue;
-                    }
-
-                    chunkStates[i].physicsState.From(allChunks[i].rb);
-                    changedIndices.Add(i);
-                    changedStates.Add(chunkStates[i]);
+                        mesh = submesh,
+                        transform = this.transform.worldToLocalMatrix
+                    };
                 }
-
-                if (changedIndices.Count > 0)
-                {
-                    ChunkStatesChangedClientRpc(changedIndices.ToArray(), changedStates.ToArray(), NetworkingUtils.SendToAllButServer());
-                }
+                combinedMesh.CombineMeshes(submeshes, false);
+                combinedMesh.Optimize();
+                combinedMesh.RecalculateBounds();
+                combinedFilter.sharedMesh = combinedMesh;
+                combinedRend.enabled = true;
             }
-        }
 
-        [ClientRpc]
-        public void ChunkStatesChangedClientRpc(int[] indices, ChunkState[] newStates, ClientRpcParams parameters)
-        {
-            for (var updateIdx = 0; updateIdx < indices.Length; updateIdx++)
+            if (mergedChildren.Count > 0)
             {
-                int chunkIdx = indices[updateIdx];
-                if (newStates[updateIdx].destroyed)
+                //create combined graph
+                chunksGraph = new GameObject(gameObject.name + " Combined Fractured").AddComponent<ChunkGraphManager>();
+                chunksGraph.transform.SetParent(transform.parent, false);
+                //reparent chunks
+                foreach (ChunkNode chunk in combinedChunks)
                 {
-                    Destroy(allChunks[chunkIdx].gameObject);
-                    continue;
+                    chunk.transform.SetParent(chunksGraph.transform, true);
+                }
+                chunksGraph.Setup(combinedChunks);
+                //destroy child graph managers
+                for (int i = 0; i < mergedGraphs.Count; i++)
+                {
+                    Destroy(mergedGraphs[i].gameObject);
                 }
 
-                if (allChunks[chunkIdx].frozen)
-                {
-                    allChunks[chunkIdx].Unfreeze();
-                }
-                
-                newStates[updateIdx].physicsState.To(allChunks[chunkIdx].rb);
+                allChunks = combinedChunks.ToArray();
+                chunks = allChunks.Length;
             }
+            
+            chunkStates = new ChunkState[allChunks.Length];
+
+            photonView.Synchronization = ViewSynchronization.ReliableDeltaCompressed;
         }
 
-        public override void OnDestroy()
+        public void OnDestroy()
         {
-            base.OnDestroy();
-            if(isServer)
-                PhysicsManager.instance.onExplosion -= OnExplosion;
+            PhysicsManager.instance.onExplosion -= OnExplosion;
         }
 
         private void OnCollisionEnter(Collision collision)
         {
+            if(!PhotonNetwork.IsMasterClient || fractured)
+                return;
+            
             float chunkMass = mass / chunks;
             float impulseToFracture = chunkMass * internalStrength;
 
@@ -146,60 +270,62 @@ namespace NHSRemont.Environment.Fractures
             {
                 Vector3 point = collision.GetContact(0).point;
                 Fracture();
-                chunksGraph.GetClosestNodeTo(point).OnCollisionEnter(collision);
+                combinedFracture.chunksGraph.GetClosestNodeTo(point).OnCollisionEnter(collision);
             }
         }
 
         private void OnExplosion(ExplosionInfo explosionInfo)
         {
+            if(!PhotonNetwork.IsMasterClient || fractured || collider == null)
+                return;
+            
             float chunkMass = mass / chunks;
             float impulseToFracture = chunkMass * internalStrength;
-            (Vector3 impulse, Vector3 point) =
+            (Vector3 impulse, Vector3 _) =
                 explosionInfo.CalculateImpulseAndPoint(transform, collider.bounds, chunkMass);
             if (impulse.sqrMagnitude < impulseToFracture * impulseToFracture)
                 return;
 
             Fracture();
-            chunksGraph.OnExplosion(explosionInfo);
+            combinedFracture.chunksGraph.OnExplosion(explosionInfo);
         }
 
         public void Fracture()
         {
-            if(!isServer)
-                return;
-            
-            fractured.Value = true;
-        }
+            if(fractured) return;
 
-        private void OnFracturedChanged(bool oldValue, bool newValue)
-        {
-            if(oldValue == true)
-                return;
-            if (newValue == false)
-            {
-                Debug.LogWarning("Should not un-fracture a gameobject! Ignoring.");
-                return;
-            }
-
+            fractured = true;
             foreach (Collider component in GetComponents<Collider>())
                 component.enabled = false;
+            PhysicsManager.instance.onExplosion -= OnExplosion;
+            
+            if (!independent)
+            {
+                combinedFracture.Fracture();
+                return;
+            }
+            for (var i = 0; i < mergedChildren.Count; i++)
+            {
+                mergedChildren[i].Fracture(); //disable collision for all children
+            }
+            
             GetComponent<Renderer>().enabled = false;
             
             chunksGraph.gameObject.SetActive(true);
             chunksGraph.InitialiseRuntimeFromPrecalculated();
-            if (isServer)
-            {
-                PhysicsManager.instance.onExplosion -= OnExplosion;
-            }
         }
 
         public ChunkGraphManager PrepareFracture()
         {
-            if (outsideMaterial == null)
-                outsideMaterial = GetComponentInChildren<Renderer>().sharedMaterial;
-            if (insideMaterial == null)
-                insideMaterial = GetComponentInChildren<Renderer>().sharedMaterial;
+            MeshRenderer rend = GetComponent<MeshRenderer>();
+            if (rend == null || !rend.enabled) //most likely a combined graph that will be generated at runtime from children
+                return null;
             
+            if (outsideMaterial == null)
+                outsideMaterial = rend.sharedMaterial;
+            if (insideMaterial == null)
+                insideMaterial = outsideMaterial;
+
             int seed = new Random().Next();
             ChunkGraphManager fracture = Fracturing.FractureGameObject(
                 gameObject,
@@ -217,6 +343,131 @@ namespace NHSRemont.Environment.Fractures
             chunksGraph = fracture;
 
             return fracture;
+        }
+
+        public override void OnMasterClientSwitched(Player newMasterClient)
+        {
+            if (newMasterClient.IsLocal)
+            {
+                foreach (ChunkNode chunkNode in allChunks)
+                {
+                    if (!chunkNode.frozen)
+                    {
+                        chunkNode.syncedRb.isSimulatedLocally = true;
+                    }
+                }
+            }
+        }
+
+
+        public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+        {
+            if (!enabled)
+                return;
+
+            if (stream.IsWriting)
+            {
+                if (!fractured)
+                {
+                    return;
+                }
+
+                //write states of all chunks
+                for (int i = 0; i < allChunks.Length; i++)
+                {
+                    ChunkState prevState = chunkStates[i];
+                    if (prevState.destroyed)
+                    {
+                        stream.SendNext(true); //true = this chunk is loose or destroyed
+                        prevState.Send(stream);
+                        continue;
+                    }
+
+                    ChunkNode chunk = allChunks[i];
+                    if (chunk == null) //chunk got destroyed
+                    {
+                        chunkStates[i].destroyed = true;
+                        stream.SendNext(true); //true = this chunk is loose or destroyed
+                        chunkStates[i].Send(stream);
+                        continue;
+                    }
+
+                    if (chunk.frozen) //don't send frozen chunk state
+                    {
+                        stream.SendNext(false); //false = this chunk is not loose and not destroyed
+                        continue;
+                    }
+
+                    if (chunkStates[i].physicsState.velocity == Vector3.zero
+                        && chunkStates[i].physicsState.angularVelocity == Vector3.zero
+                        && allChunks[i].syncedRb.rb.IsSleeping())
+                    {
+                        //send old state, no need to re-encode it as the rb is sleeping
+                        stream.SendNext(true); //true = this chunk is loose or destroyed
+                        chunkStates[i].Send(stream);
+                        continue;
+                    }
+
+                    //otherwise, encode state and send it
+                    chunkStates[i].physicsState.From(allChunks[i].syncedRb.rb);
+                    stream.SendNext(true); //true = this chunk is loose or destroyed
+                    chunkStates[i].Send(stream);
+                }
+            }
+
+            if (stream.IsReading)
+            {
+                if (!fractured)
+                    Fracture();
+
+                float lag = (float) (PhotonNetwork.Time - info.SentServerTime);
+
+                for (int i = 0; i < chunkStates.Length; i++)
+                {
+                    bool isChunkLooseOrDestroyed = stream.ReceiveNext<bool>();
+                    if (!isChunkLooseOrDestroyed)
+                        continue;
+
+                    chunkStates[i].Receive(stream);
+                    chunkStates[i].Apply(allChunks[i], lag);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Copies the component to a specified gameobject
+        /// </summary>
+        /// <param name="source">The component to copy</param>
+        /// <param name="target">The gameobject to copy it to</param>
+        /// <param name="scaleFactor">The relative difference in scale of the target compared to the source. 0.5f,0.5f,0.5f means an object half as big in each direction.</param>
+        public static void CopyToSimilarObject(FractureThis source, GameObject target, Vector3 scaleFactor, bool independent = true)
+        {
+            CopyToSimilarObject(source, target, scaleFactor, source.anchor, independent);
+        }
+        
+        /// <summary>
+        /// Copies the component to a specified gameobject
+        /// </summary>
+        /// <param name="source">The component to copy</param>
+        /// <param name="target">The gameobject to copy it to</param>
+        /// <param name="scaleFactor">The relative difference in scale of the target compared to the source. 0.5f,0.5f,0.5f means an object half as big in each direction.</param>
+        /// <param name="newAnchors">The anchors that the target will have</param>
+        public static void CopyToSimilarObject(FractureThis source, GameObject target, Vector3 scaleFactor, Anchor newAnchors, bool independent = true)
+        {
+            FractureThis copy = target.AddComponent<FractureThis>();
+            copy.anchor = newAnchors;
+            copy.chunks = (int)Mathf.Max(2, source.chunks * scaleFactor.x * scaleFactor.y * scaleFactor.z);
+            copy.density = source.density;
+            copy.internalStrength = source.internalStrength;
+            copy.insideMaterial = source.insideMaterial;
+            copy.outsideMaterial = source.outsideMaterial;
+            copy.fragmentsCategory = source.fragmentsCategory;
+            copy.independent = independent;
+
+            if(independent)
+            {
+                target.AddComponent<PhotonView>().Synchronization = ViewSynchronization.ReliableDeltaCompressed;
+            }
         }
     }
 }

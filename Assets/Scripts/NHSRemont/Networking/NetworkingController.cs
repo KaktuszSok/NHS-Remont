@@ -1,92 +1,134 @@
+using System.Collections.Generic;
+using ExitGames.Client.Photon;
 using NHSRemont.Gameplay;
 using NHSRemont.Networking;
-using Unity.Netcode;
+using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class NetworkingController : MonoBehaviour
+public class NetworkingController : MonoBehaviour, IMatchmakingCallbacks, IConnectionCallbacks
 {
-    private NetworkManager network;
-
-    public static ServerSettings settings = new ServerSettings("TestFlat");
+    public static NetworkingController instance;
+    public static NHSRoomSettings settings = new NHSRoomSettings(1);
 
     private void Awake()
     {
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton != GetComponent<NetworkManager>())
+        if (instance != null)
         {
             Destroy(gameObject);
+            return;
         }
+        instance = this;
+        PhotonNetwork.AutomaticallySyncScene = true;
+        PhotonNetwork.AddCallbackTarget(this);
+        PhotonPeer.RegisterType(typeof(MapPersistence), MapPersistence.typeId, MapPersistence.Serialise, MapPersistence.Deserialise);
+        DontDestroyOnLoad(gameObject);
     }
 
-    void Start()
+    private void Start()
     {
-        network = NetworkManager.Singleton;
-
-        network.OnServerStarted += InitialiseServer;
-        network.OnClientDisconnectCallback += OnClientDisconnected;
-        network.OnClientConnectedCallback += OnClientConnected;
+        PhotonNetwork.ConnectUsingSettings();
     }
-    
+
     private void Update() //TODO make buttons for this instead of this temporary hotkeys
     {
-        if (Input.GetKeyDown(KeyCode.H))
+        if (Input.GetKeyDown(KeyCode.J))
         {
-            if (!network.IsClient && !network.IsServer)
+            if (!PhotonNetwork.IsConnected)
             {
-                network.StartHost();
+                PhotonNetwork.ConnectUsingSettings();
             }
         }
         
-        if (Input.GetKeyDown(KeyCode.J))
+        if (Input.GetKeyDown(KeyCode.H))
         {
-            if (!network.IsClient && !network.IsServer)
-            {
-                network.StartClient();
-            }
+            QuickPlay();
         }
 
         if (Input.GetKeyDown(KeyCode.X))
         {
-            ShutdownServer();
+            ShutdownServerOrClient();
         }
     }
 
-    public void ShutdownServer()
+    public void ShutdownServerOrClient()
     {
-        if(GameManager.instance)
+        if(PhotonNetwork.IsMasterClient && GameManager.instance != null)
             GameManager.instance.persistence.PersistLoadedSceneState();
         
-        network.Shutdown();
+        PhotonNetwork.Disconnect();
         GameManager.ReturnToMenu();
     }
 
-    private void InitialiseServer()
+    public void QuickPlay()
     {
-        network.SceneManager.OnSynchronizeComplete += OnSceneSynchronised;
-        network.SceneManager.OnLoadComplete += (id, sceneName, mode) =>
+        if (!PhotonNetwork.InRoom)
         {
-            OnSceneSynchronised(id);
-        };
-        network.SceneManager.LoadScene(settings.mapName, LoadSceneMode.Single);
-    }
-
-    private void OnClientConnected(ulong id)
-    {
-        Debug.Log("client connected with id " + id);
-    }
-
-    private void OnClientDisconnected(ulong id)
-    {
-        Debug.Log("id=" + id + "/us=" + network.LocalClientId + " or " + network.ServerClientId);
-        if(network.LocalClientId == id) //we have disconnected
-            GameManager.ReturnToMenu();
-    }
-
-    private void OnSceneSynchronised(ulong id)
-    {
-        if (network.IsServer)
-        {
-            GameManager.instance.SynchroniseMapClientRpc(GameManager.instance.persistence, NetworkingUtils.SendToSingleClient(id));
+            PhotonNetwork.JoinOrCreateRoom("testroom", new RoomOptions(), TypedLobby.Default);
         }
     }
+
+    #region Callbacks
+    public void OnCreatedRoom()
+    {
+        Debug.Log("created room!");
+        PhotonNetwork.LoadLevel(settings.mapIndex);
+    }
+    
+    public void OnFriendListUpdate(List<FriendInfo> friendList)
+    {
+    }
+
+    public void OnCreateRoomFailed(short returnCode, string message)
+    {
+        Debug.Log("Shit");
+    }
+
+    public void OnJoinedRoom()
+    {
+    }
+
+    public void OnJoinRoomFailed(short returnCode, string message)
+    {
+        Debug.Log("Shit");
+    }
+
+    public void OnJoinRandomFailed(short returnCode, string message)
+    {
+        Debug.Log("Shit");
+    }
+
+    public void OnLeftRoom()
+    {
+    }
+
+    public void OnConnected()
+    {
+        Debug.Log("Connected!");
+    }
+
+    public void OnConnectedToMaster()
+    {
+        QuickPlay();
+    }
+
+    public void OnDisconnected(DisconnectCause cause)
+    {
+        Debug.Log("Disconnected.");
+        SceneManager.LoadScene("Menu");
+    }
+
+    public void OnRegionListReceived(RegionHandler regionHandler)
+    {
+    }
+
+    public void OnCustomAuthenticationResponse(Dictionary<string, object> data)
+    {
+    }
+
+    public void OnCustomAuthenticationFailed(string debugMessage)
+    {
+    }
+    #endregion
 }

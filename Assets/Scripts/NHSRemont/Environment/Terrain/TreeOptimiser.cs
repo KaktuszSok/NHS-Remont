@@ -25,9 +25,9 @@ namespace NHSRemont.Environment.Terrain
         private Transform camTransform; //main camera transform
         private UnityEngine.Terrain terrain;
         private Vector3 terrainPos;
-        private TreeChunk[,,] treeChunks; //x,z,type
+        private TreeChunk[][][] treeChunks; //x,z,type
         private CommonlyNullCheckedArray3D<Transform> chunkGOs; //gameobjects corresponding to each tree chunk
-        private ChunkGroup[,,] chunkGroups; //x/4, z/4, type
+        private ChunkGroup[][][] chunkGroups; //x/4, z/4, type
 
         [Header("Settings")]
         [SerializeField, Tooltip("Side-length of Tree Chunks in metres. Each chunk may render at most 1023 trees.")]
@@ -62,6 +62,7 @@ namespace NHSRemont.Environment.Terrain
         private TerrainData originalTerrainData;
         private Transform fallingTreesParent;
         private int chunksX, chunksZ, typesCount;
+        private int groupsX, groupsZ;
         private float billboardCheckTime = 0f;
         //index = tree type:
         private Mesh[] billboardMeshes;
@@ -126,7 +127,15 @@ namespace NHSRemont.Environment.Terrain
             float relativeChunkSizeZ = treeChunkSize / terrainSize.z;
             
             //instantiate chunks array with appropriate size
-            treeChunks = new TreeChunk[chunksX, chunksZ, typesCount];
+            treeChunks = new TreeChunk[chunksX][][];
+            for (int x = 0; x < chunksX; x++)
+            {
+                treeChunks[x] = new TreeChunk[chunksZ][];
+                for (int z = 0; z < chunksZ; z++)
+                {
+                    treeChunks[x][z] = new TreeChunk[typesCount];
+                }
+            }
             chunkGOs = new CommonlyNullCheckedArray3D<Transform>(chunksX, chunksZ, typesCount);
             for (int type = 0; type < treeTypes.Length; type++)
             {
@@ -164,7 +173,7 @@ namespace NHSRemont.Environment.Terrain
                             x*relativeChunkSizeX, z*relativeChunkSizeZ,
                             (x+1)*relativeChunkSizeX, (z+1)*relativeChunkSizeZ
                             );
-                        treeChunks[x, z, type] = new TreeChunk(boundingBox, treeMesh, treeMaterials, billboardMesh, treeBillboardMaterial);
+                        treeChunks[x][z][type] = new TreeChunk(boundingBox, treeMesh, treeMaterials, billboardMesh, treeBillboardMaterial);
                     }
                 }
             }
@@ -185,7 +194,7 @@ namespace NHSRemont.Environment.Terrain
                 {
                     for (int x = 0; x < chunksX; x++)
                     {
-                        treeChunks[x, z, type].UpdateMatrixArray(terrainPos, terrainSize);
+                        treeChunks[x][z][type].UpdateMatrixArray(terrainPos, terrainSize);
                         if (collisionGenerationMode == CollisionGenerationMode.ALL_ON_LOAD_INSTANT)
                         {
                             UpdateChunkCollision(x, z, type);
@@ -199,21 +208,23 @@ namespace NHSRemont.Environment.Terrain
             }
             
             //generate groups
-            int groupsX = Mathf.CeilToInt((float)chunksX / chunkGroupSize);
-            int groupsZ = Mathf.CeilToInt((float) chunksZ / chunkGroupSize);
-            chunkGroups = new ChunkGroup[groupsX, groupsZ, typesCount];
-            for (int type = 0; type < typesCount; type++)
+            groupsX = Mathf.CeilToInt((float)chunksX / chunkGroupSize);
+            groupsZ = Mathf.CeilToInt((float) chunksZ / chunkGroupSize);
+            chunkGroups = new ChunkGroup[groupsX][][];
+            for (int x = 0; x < groupsX; x++)
             {
+                chunkGroups[x] = new ChunkGroup[groupsZ][];
                 for (int z = 0; z < groupsZ; z++)
                 {
-                    for (int x = 0; x < groupsX; x++)
+                    chunkGroups[x][z] = new ChunkGroup[typesCount];
+                    for (int type = 0; type < typesCount; type++)
                     {
-                        chunkGroups[x, z, type] = new ChunkGroup(
+                        chunkGroups[x][z][type] = new ChunkGroup(
                             treeChunks, 
                             x * chunkGroupSize, z * chunkGroupSize, type,
                             chunkGroupSize
                             );
-                        chunkGroups[x,z,type].UpdateCombinedMatrixArray();
+                        chunkGroups[x][z][type].UpdateCombinedMatrixArray();
                     }
                 }
             }
@@ -289,10 +300,17 @@ namespace NHSRemont.Environment.Terrain
                 int camPosOnTerrainZ = (int) camPosOnTerrainFloat.z;
                 int chunkSizeInt = (int) treeChunkSize;
                 int chunkCentreOffset = (int) treeChunkSize >> 1;
+
                 
-                foreach (ChunkGroup chunkGroup in chunkGroups)
+                for(int x = 0; x < groupsX; x++)
                 {
-                    chunkGroup.allBillboard = true; //reset this value as we will set it to false later if necessary
+                    for (int z = 0; z < groupsZ; z++)
+                    {
+                        for (int type = 0; type < typesCount; type++)
+                        {
+                            chunkGroups[x][z][type].allBillboard = true; //reset this value as we will set it to false later if necessary
+                        }
+                    }
                 }
                 
                 for (int z = 0; z < chunksZ; z++)
@@ -308,7 +326,7 @@ namespace NHSRemont.Environment.Terrain
 
                         for (int type = 0; type < typesCount; type++)
                         {
-                            TreeChunk treeChunk = treeChunks[x, z, type];
+                            TreeChunk treeChunk = treeChunks[x][z][type];
                             treeChunk.drawAsMesh = manhattanDist <= meshDrawingMaxDistance;
                             if (treeChunk.drawAsMesh)
                             {
@@ -322,9 +340,15 @@ namespace NHSRemont.Environment.Terrain
             }
             billboardCheckTime += Time.deltaTime;
 
-            foreach (ChunkGroup chunkGroup in chunkGroups)
+            for(int x = 0; x < groupsX; x++)
             {
-                chunkGroup.Draw();
+                for (int z = 0; z < groupsZ; z++)
+                {
+                    for (int type = 0; type < typesCount; type++)
+                    {
+                        chunkGroups[x][z][type].Draw();
+                    }
+                }
             }
         }
 
@@ -435,7 +459,7 @@ namespace NHSRemont.Environment.Terrain
                 {
                     for (int x = groupPosMin.x; x <= groupPosMax.x; x++)
                     {
-                        chunkGroups[x,z,type].UpdateCombinedMatrixArray();
+                        chunkGroups[x][z][type].UpdateCombinedMatrixArray();
                     }   
                 }
             }
@@ -580,12 +604,12 @@ namespace NHSRemont.Environment.Terrain
         
         private TreeChunk GetTreeChunk(int chunkX, int chunkZ, int type)
         {
-            return treeChunks[chunkX, chunkZ, type];
+            return treeChunks[chunkX][chunkZ][type];
         }
 
         private ChunkGroup GetGroupAtChunk(int chunkX, int chunkZ, int type)
         {
-            return chunkGroups[chunkX / chunkGroupSize, chunkZ / chunkGroupSize, type];
+            return chunkGroups[chunkX/chunkGroupSize][chunkZ/chunkGroupSize][type];
         }
 
         private (int x, int z) GetChunkPosAt(Vector3 worldPos)
@@ -646,8 +670,8 @@ namespace NHSRemont.Environment.Terrain
 
             groupPosMin.x = Math.Max(0, groupPosMin.x);
             groupPosMin.z = Math.Max(0, groupPosMin.z);
-            groupPosMax.x = Math.Min(chunkGroups.GetLength(0) - 1, groupPosMax.x);
-            groupPosMax.z = Math.Min(chunkGroups.GetLength(1) - 1, groupPosMax.z);
+            groupPosMax.x = Math.Min(groupsX - 1, groupPosMax.x);
+            groupPosMax.z = Math.Min(groupsZ - 1, groupPosMax.z);
         }
 
         private float CalculateTreeMass(TreeInstance tree)
@@ -767,23 +791,24 @@ namespace NHSRemont.Environment.Terrain
         /// </summary>
         private class ChunkGroup
         {
-            private readonly TreeChunk[,] chunks;
+            private readonly TreeChunk[][] chunks;
             private Matrix4x4[] combinedMatrix;
             
             public bool allBillboard = true;
             
-            public ChunkGroup(TreeChunk[,,] allChunks, int startX, int startZ, int treeType, int groupSize)
+            public ChunkGroup(TreeChunk[][][] allChunks, int startX, int startZ, int treeType, int groupSize)
             {
-                int sizeX = Math.Min(groupSize, allChunks.GetLength(0) - startX);
-                int sizeZ = Math.Min(groupSize, allChunks.GetLength(1) - startZ);
+                int sizeX = Math.Min(groupSize, allChunks.Length - startX);
+                int sizeZ = sizeX == 0 ? 0 : Math.Min(groupSize, allChunks[0].Length - startZ);
 
                 //fill our chunk array with select chunks
-                chunks = new TreeChunk[sizeX, sizeZ];
-                for (int z = 0; z < sizeZ; z++)
+                chunks = new TreeChunk[sizeX][];
+                for (int x = 0; x < sizeX; x++)
                 {
-                    for (int x = 0; x < sizeX; x++)
+                    chunks[x] = new TreeChunk[sizeZ];
+                    for (int z = 0; z < sizeZ; z++)
                     {
-                        chunks[x, z] = allChunks[startX + x, startZ + z, treeType];
+                        chunks[x][z] = allChunks[startX + x][startZ + z][treeType];
                     }
                 }
             }
@@ -795,9 +820,12 @@ namespace NHSRemont.Environment.Terrain
             {
                 //calculate total size
                 int totalSize = 0;
-                foreach (TreeChunk treeChunk in chunks)
+                for (int x = 0; x < chunks.Length; x++)
                 {
-                    totalSize += treeChunk.MatricesCount();
+                    for (int z = 0; z < chunks[x].Length; z++)
+                    {
+                        totalSize += chunks[x][z].MatricesCount();
+                    }
                 }
 
                 if (totalSize > 1023)
@@ -808,12 +836,15 @@ namespace NHSRemont.Environment.Terrain
                 //create combined array
                 combinedMatrix = new Matrix4x4[totalSize];
                 int i = 0;
-                foreach (TreeChunk treeChunk in chunks)
+                for (int x = 0; x < chunks.Length; x++)
                 {
-                    foreach (Matrix4x4 treeMatrix in treeChunk.matrices)
+                    for (int z = 0; z < chunks[x].Length; z++)
                     {
-                        combinedMatrix[i] = treeMatrix;
-                        i++;
+                        foreach (Matrix4x4 treeMatrix in chunks[x][z].matrices)
+                        {
+                            combinedMatrix[i] = treeMatrix;
+                            i++;
+                        }
                     }
                 }
             }
@@ -822,13 +853,16 @@ namespace NHSRemont.Environment.Terrain
             {
                 if (allBillboard)
                 {
-                    Graphics.DrawMeshInstanced(chunks[0,0].billboardMesh, 0, chunks[0,0].billboardMaterial, combinedMatrix);
+                    Graphics.DrawMeshInstanced(chunks[0][0].billboardMesh, 0, chunks[0][0].billboardMaterial, combinedMatrix);
                 }
                 else
                 {
-                    foreach (TreeChunk treeChunk in chunks)
+                    for (int x = 0; x < chunks.Length; x++)
                     {
-                        treeChunk.DrawTrees();
+                        for (int z = 0; z < chunks[x].Length; z++)
+                        {
+                            chunks[x][z].DrawTrees();
+                        }
                     }
                 }
             }

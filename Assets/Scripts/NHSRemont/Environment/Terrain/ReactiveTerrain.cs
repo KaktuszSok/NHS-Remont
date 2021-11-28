@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using NHSRemont.Gameplay;
 using UnityEngine;
 
@@ -11,10 +10,13 @@ namespace NHSRemont.Environment.Terrain
     [RequireComponent(typeof(RuntimeTerrain), typeof(TreeOptimiser))]
     public class ReactiveTerrain : MonoBehaviour
     {
-        private TerrainData terrainData;
+        private const float minimumTntForSignificantExplosion = 0.140f;
+        
+        public TerrainData terrainData { get; private set; }
         private TreeOptimiser treeOptimiser;
         private Vector3 terrainPos;
         private Vector3 terrainSize;
+        private int terrainIndex;
 
         [SerializeField, Tooltip("The layer to apply when an explosion chars the surrounding terrain")]
         private int terrainCharredLayer;
@@ -27,6 +29,15 @@ namespace NHSRemont.Environment.Terrain
             treeOptimiser = GetComponent<TreeOptimiser>();
             terrainPos = transform.position;
             terrainSize = terrainData.size;
+            var allTerrains = FindObjectsOfType<UnityEngine.Terrain>();
+            for (var i = 0; i < allTerrains.Length; i++)
+            {
+                if (allTerrains[i].transform == transform)
+                {
+                    terrainIndex = i;
+                    break;
+                }
+            }
         }
 
         private void Start()
@@ -41,28 +52,45 @@ namespace NHSRemont.Environment.Terrain
 
         public void OnExplosion(ExplosionInfo explosionInfo)
         {
+            if(explosionInfo.power_tnt < minimumTntForSignificantExplosion)
+                return;
+            
             treeOptimiser.ApplyExplosionToNearbyTrees(explosionInfo);
-            ModifyTerrain(explosionInfo);
+            TerrainExplosionEvent terrainExplosionEvent = new(terrainIndex, explosionInfo);
+            GameManager.instance.EnqueueTerrainEvent(terrainExplosionEvent);
         }
 
         /// <summary>
         /// Modifies terrain as a result of an explosion. Does not affect trees.
         /// </summary>
-        public void ModifyTerrain(ExplosionInfo explosionInfo)
+        /// <returns>Whether the terrain was modified at all, and the edit that got applied to this terrain as a result of the explosion.</returns>
+        public (bool modified, TerrainEdit edit) ModifyTerrain(ExplosionInfo explosionInfo)
         {
-            DoCharring(explosionInfo);
-            RemoveGrass(explosionInfo);
-            DeformTerrain(explosionInfo);
+            TerrainEdit edit = new TerrainEdit()
+            {
+                terrainIndex = terrainIndex
+            };
+            bool didCharring = DoCharring(explosionInfo, ref edit);
+            bool removedGrass = RemoveGrass(explosionInfo, ref edit);
+            bool deformedTerrain = DeformTerrain(explosionInfo, ref edit);
+            if (didCharring || removedGrass || deformedTerrain)
+            {
+                edit.Apply(this);
+                return (true, edit);
+            }
+
+
+            return (false, edit);
         }
 
-        private void DoCharring(ExplosionInfo explosionInfo)
+        private bool DoCharring(ExplosionInfo explosionInfo, ref TerrainEdit edit)
         {
             int layersCount = terrainData.terrainLayers.Length;
             var (min, max, coords) = GetMapCoordinatesInSphere(explosionInfo.position, explosionInfo.blastRadius,
                 terrainData.alphamapWidth, terrainData.alphamapHeight);
             int deltaX = max.x - min.x;
             int deltaZ = max.z - min.z;
-            if(deltaX < 0 || deltaZ < 0) return; //fully out of bounds
+            if(deltaX < 0 || deltaZ < 0) return false; //fully out of bounds
 
             float blastRadiusSqr = explosionInfo.blastRadius*explosionInfo.blastRadius;
             float[,,] alphamap = terrainData.GetAlphamaps(min.x, min.z, deltaX+1, deltaZ + 1);
@@ -73,7 +101,7 @@ namespace NHSRemont.Environment.Terrain
                 float previousCharring = alphamap[z, x, terrainCharredLayer]; //charring before this explosion
                 if(previousCharring >= 1) continue;
                 
-                float intensity = explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f);
+                float intensity = (float)explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f);
                 float maxCharring = Mathf.Clamp01(intensity / settings.explosionIntensityForFullyCharred);
                 float factor = settings.charringCurve.Evaluate(Mathf.Sqrt(coordAndDist.sqrDist / blastRadiusSqr));
                 float charringAdded = maxCharring*factor; //amount of charring this explosion will cause at this coordinate
@@ -94,16 +122,17 @@ namespace NHSRemont.Environment.Terrain
                 }
             }
 
-            terrainData.SetAlphamaps(min.x, min.z, alphamap);
+            edit.coloursModification = (min.x, min.z, alphamap);
+            return true;
         }
 
-        private void RemoveGrass(ExplosionInfo explosionInfo)
+        private bool RemoveGrass(ExplosionInfo explosionInfo, ref TerrainEdit edit)
         {
             var (min, max, coords) = GetMapCoordinatesInSphere(explosionInfo.position, explosionInfo.blastRadius,
                 terrainData.detailWidth, terrainData.detailHeight);
             int deltaX = max.x - min.x;
             int deltaZ = max.z - min.z;
-            if(deltaX < 0 || deltaZ < 0) return; //fully out of bounds
+            if (deltaX < 0 || deltaZ < 0) return false; //fully out of bounds
             
             float blastRadiusSqr = explosionInfo.blastRadius*explosionInfo.blastRadius;
             int[] supportedLayers = terrainData.GetSupportedLayers(min.x, min.z, deltaX + 1, deltaZ + 1);
@@ -120,7 +149,7 @@ namespace NHSRemont.Environment.Terrain
                 int x = coordAndDist.x - min.x;
                 int z = coordAndDist.z - min.z;
                 
-                float intensity = explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f);
+                float intensity = (float)explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f);
                 float maxDegrassing = Mathf.Clamp01(intensity / (settings.explosionIntensityForFullyCharred));
                 float factor = settings.charringCurve.Evaluate(Mathf.Sqrt(coordAndDist.sqrDist / blastRadiusSqr));
                 
@@ -130,19 +159,27 @@ namespace NHSRemont.Environment.Terrain
                     detailMap.details[z, x] = (int) Mathf.Clamp(detailMap.details[z, x] - (degrassing * 10), 0, 255);
                 }
             }
-            foreach (var detailMap in detailMaps)
+
+            TerrainEdit.ModifiedDetailsLayer[] detailMapsArray = new TerrainEdit.ModifiedDetailsLayer[detailMaps.Count];
+            for (var i = 0; i < detailMaps.Count; i++)
             {
-                terrainData.SetDetailLayer(min.x, min.z, detailMap.layer, detailMap.details);
+                detailMapsArray[i] = new TerrainEdit.ModifiedDetailsLayer
+                {
+                    layer = detailMaps[i].layer,
+                    values = detailMaps[i].details
+                };
             }
+            edit.detailsModification = (min.x, min.z, detailMapsArray);
+            return true;
         }
 
-        private void DeformTerrain(ExplosionInfo explosionInfo)
+        private bool DeformTerrain(ExplosionInfo explosionInfo, ref TerrainEdit edit)
         {
             var (min, max, coords) = GetMapCoordinatesInSphere(explosionInfo.position, explosionInfo.blastRadius,
                 terrainData.heightmapResolution, terrainData.heightmapResolution);
             int deltaX = max.x - min.x;
             int deltaZ = max.z - min.z;
-            if(deltaX < 0 || deltaZ < 0) return; //fully out of bounds
+            if(deltaX < 0 || deltaZ < 0) return false; //fully out of bounds
 
             float blastRadiusSqr = explosionInfo.blastRadius*explosionInfo.blastRadius;
             float[,] heightmap = terrainData.GetHeights(min.x, min.z, deltaX+1, deltaZ + 1);
@@ -160,7 +197,8 @@ namespace NHSRemont.Environment.Terrain
                 heightmap[z, x] = Mathf.Clamp01(previousHeight + heightDelta); //modify heightmap
             }
 
-            terrainData.SetHeights(min.x, min.z, heightmap);
+            edit.heightModification = (min.x, min.z, heightmap);
+            return true;
         }
         
         /// <summary>

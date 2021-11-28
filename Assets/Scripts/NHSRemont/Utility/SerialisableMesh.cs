@@ -58,7 +58,6 @@ namespace NHSRemont.Utility
         [SerializeField] private Vector3[] verts;
         [SerializeField] private int[] tris;
         [SerializeField] private Vector2[] uv;
-        [SerializeField] private Vector2[] uv2;
         [SerializeField] private Vector3[] normals;
         [SerializeField] private SerialisableSubmeshDescriptor[] submeshes;
 
@@ -67,7 +66,6 @@ namespace NHSRemont.Utility
             verts = mesh.vertices;
             tris = mesh.triangles;
             uv = mesh.uv;
-            uv2 = mesh.uv2;
             normals = mesh.normals;
             submeshes = new SerialisableSubmeshDescriptor[mesh.subMeshCount];
             for (int i = 0; i < mesh.subMeshCount; i++)
@@ -83,7 +81,6 @@ namespace NHSRemont.Utility
                 vertices = verts,
                 triangles = tris,
                 uv = uv,
-                uv2 = uv2,
                 normals = normals
             };
             mesh.SetSubMeshes(SerialisableSubmeshDescriptor.ConvertArray(submeshes));

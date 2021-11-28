@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using Photon.Pun;
 using UnityEngine;
 using UnityEngine.VFX;
 
 namespace NHSRemont.Gameplay
 {
-    public class PhysicsManager : MonoBehaviour
+    public class PhysicsManager : MonoBehaviourPun
     {
         public static PhysicsManager instance;
 
@@ -16,20 +17,20 @@ namespace NHSRemont.Gameplay
             DEBRIS_MEDIUM,
             DEBRIS_LARGE
         }
-        private readonly Dictionary<PhysObjectType, int> maxObjectsAmount = new Dictionary<PhysObjectType, int>()
+        private readonly Dictionary<PhysObjectType, int> maxObjectsAmount = new()
         {
             {PhysObjectType.NORMAL, -1},
             {PhysObjectType.DEBRIS_SMALL, 150},
             {PhysObjectType.DEBRIS_MEDIUM, 300},
             {PhysObjectType.DEBRIS_LARGE, 750}
         };
-        private readonly Dictionary<PhysObjectType, LinkedList<Rigidbody>> rigidbodies = new Dictionary<PhysObjectType, LinkedList<Rigidbody>>();
-        private readonly Dictionary<Rigidbody, float> rigidbodyCrossAreasCache = new Dictionary<Rigidbody, float>();
+        private readonly Dictionary<PhysObjectType, LinkedList<Rigidbody>> rigidbodies = new();
+        private readonly Dictionary<Rigidbody, float> rigidbodyCrossAreasCache = new();
 
         public Action<ExplosionInfo> onExplosion;
 
         [SerializeField]
-        private VisualEffect explosionVFX;
+        private GameObject explosionVFX;
 
         private void Awake()
         {
@@ -52,41 +53,26 @@ namespace NHSRemont.Gameplay
             }
         }
 
-        private void Update()
-        {
-            //TODO remove test
-            if (Input.GetMouseButtonDown(0))
-            {
-                Transform camTransform = Camera.main.transform;
-                if (Physics.Raycast(camTransform.position, camTransform.forward, out RaycastHit hit, 4000f))
-                {
-                    float yield = 0.052f;
-                    if (Input.GetKey(KeyCode.LeftShift)) yield = 1f;
-                    else if (Input.GetKey(KeyCode.Tab)) yield = 6f;
-                    else if (Input.GetKey(KeyCode.X)) yield = 500f;
-                    else if (Input.GetKey(KeyCode.Delete)) yield = 27_000f;
-
-                    Vector3 point = hit.point;
-                    point -= camTransform.forward * 0.05f;
-                    
-                    CreateExplosion(new ExplosionInfo(point, yield, 0.2f));
-                }
-            }
-        }
-
         public void RegisterRigidbody(Rigidbody rb, PhysObjectType classification)
         {
             var rbCollection = rigidbodies[classification];
-            int maxCount = maxObjectsAmount[classification];
-            if (maxCount != -1)
+            if (PhotonNetwork.IsMasterClient)
             {
-                //limit amount of objects of each type
-                while (rbCollection.Count > maxCount)
+                int maxCount = maxObjectsAmount[classification];
+                if (maxCount != -1)
                 {
-                    var node = rbCollection.First;
-                    Destroy(node.Value.gameObject);
-                    rbCollection.Remove(node);
-                    RemoveRigidbodyFromCaches(node.Value);
+                    //limit amount of objects of each type
+                    while (rbCollection.Count > maxCount)
+                    {
+                        var node = rbCollection.First;
+                        if (node.Value != null)
+                        {
+                            Destroy(node.Value.gameObject);
+                        }
+
+                        rbCollection.Remove(node);
+                        RemoveRigidbodyFromCaches(node.Value);
+                    }
                 }
             }
 
@@ -162,17 +148,26 @@ namespace NHSRemont.Gameplay
         /// </summary>
         public void CreateExplosion(ExplosionInfo explosionInfo)
         {
+            photonView.RPC(nameof(CreateExplosionRpc), RpcTarget.All,
+                explosionInfo.position, explosionInfo.blastRadius, explosionInfo.power_tnt, explosionInfo.energyFalloffExponent, explosionInfo.upwardsModifier);
+        }
+
+        [PunRPC]
+        private void CreateExplosionRpc(Vector3 pos, float blastRadius, float power_tnt, float falloff, float upwardsModifier)
+        {
+            ExplosionInfo explosionInfo = new ExplosionInfo((pos, blastRadius, (double)power_tnt*ExplosionInfo.joulesPerKgTnt, falloff, upwardsModifier));
+            
             float blastRadiusSqr = explosionInfo.blastRadius * explosionInfo.blastRadius;
             foreach (Rigidbody rb in GetAllRigidbodies())
             {
                 if ((rb.position - explosionInfo.position).sqrMagnitude <= blastRadiusSqr)
                 {
-                    if(rb.tag.Equals("Player")) continue; //TODO remove once explosion testing is gone
+                    //if(rb.tag.Equals("Player")) continue;
                     explosionInfo.ApplyToRigidbody(rb);
                 }
             }
             onExplosion?.Invoke(explosionInfo);
-            GameObject explosionEffect = Instantiate(explosionVFX.gameObject);
+            GameObject explosionEffect = Instantiate(explosionVFX);
             explosionEffect.transform.position = explosionInfo.position;
             float scale = explosionInfo.blastRadius / 320f;
             explosionEffect.transform.localScale = Vector3.one * scale;

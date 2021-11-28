@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using ExitGames.Client.Photon;
 using UnityEngine;
 
 // ReSharper disable InconsistentNaming
@@ -10,11 +12,11 @@ namespace NHSRemont.Gameplay
         /// <summary>
         /// How much energy does 1kg of tnt have?
         /// </summary>
-        private const float joulesPerKgTnt = 4.184e6f;
+        public const float joulesPerKgTnt = 4.184e6f;
         /// <summary>
         /// What percentage of the explosion's energy gets translated into kinetic energy applied to rigidbodies
         /// </summary>
-        private const float energyConversionEfficiency = 0.25f;
+        private const float energyConversionEfficiency = 0.10f;
         /// <summary>
         /// When calculating an explosion from tnt mass, this value determines where the blast radius ends.
         /// </summary>
@@ -35,7 +37,7 @@ namespace NHSRemont.Gameplay
         /// <summary>
         /// The energy released by the explosion, in joules
         /// </summary>
-        public readonly float power;
+        public readonly double power;
         /// <summary>
         /// The squared distance is further raised to this power when calculating the energy at a point
         /// </summary>
@@ -44,6 +46,8 @@ namespace NHSRemont.Gameplay
         /// The upwards modifier of the explosion
         /// </summary>
         public readonly float upwardsModifier;
+
+        public float power_tnt => (float)(power / joulesPerKgTnt);
 
         // /// <summary>
         // /// Constructor which allows you to set the blast radius and power (in joules) directly
@@ -82,11 +86,21 @@ namespace NHSRemont.Gameplay
             //(r^2)^falloff = E*efficiency/(I*4pi)
             //r = root(2*falloff, E*efficiency/(I*4pi))
             //r = pow(E*efficiency/(I*4pi), 1/(2*falloff))
-            float equationBase = power*energyConversionEfficiency / (minimumJoulesPerSquareMetre * 4*Mathf.PI);
-            float equationPower = 1f / (2 * energyFalloffExponent);
-            this.blastRadius = Mathf.Pow(equationBase, equationPower);
+            double equationBase = power*energyConversionEfficiency / (minimumJoulesPerSquareMetre * 4*Mathf.PI);
+            double equationPower = 1d / (2 * energyFalloffExponent);
+            this.blastRadius = (float)Math.Pow(equationBase, equationPower);
 
             Debug.Log("radius=" + blastRadius);
+        }
+
+        //using a tuple so that we don't cause accidental overload conflicts
+        public ExplosionInfo((Vector3 position, float blastRadius, double power, float energyFalloffExponent, float upwardsModifier) directParameters)
+        {
+            this.position = directParameters.position;
+            this.blastRadius = directParameters.blastRadius;
+            this.power = directParameters.power;
+            this.energyFalloffExponent = directParameters.energyFalloffExponent;
+            this.upwardsModifier = directParameters.upwardsModifier;
         }
 
         public void ApplyToRigidbody(Rigidbody rb)
@@ -132,8 +146,8 @@ namespace NHSRemont.Gameplay
             sqrDistance = Mathf.Max(sqrDistance, minDistance*minDistance);
             sqrDistance = Mathf.Pow(sqrDistance, energyFalloffExponent);
             surfaceArea = LimitSurfaceArea(surfaceArea, sqrDistance);
-            float energy = GetConeEnergy(sqrDistance, surfaceArea)*energyConversionEfficiency;
-            return Mathf.Sqrt(2 * energy * rbMass);
+            double energy = GetConeEnergy(sqrDistance, surfaceArea)*energyConversionEfficiency;
+            return (float)Math.Sqrt(2 * energy * rbMass);
         }
 
         /// <summary>
@@ -144,7 +158,7 @@ namespace NHSRemont.Gameplay
         public float GetOverpressureAt(float sqrDistance)
         {
             sqrDistance = Mathf.Max(sqrDistance, minDistance*minDistance);
-            return power / GetTotalVolumeAt(Mathf.Sqrt(Mathf.Pow(sqrDistance, energyFalloffExponent)));
+            return (float) (power / GetTotalVolumeAt(Mathf.Sqrt(Mathf.Pow(sqrDistance, energyFalloffExponent))));
         }
 
         /// <summary>
@@ -153,7 +167,7 @@ namespace NHSRemont.Gameplay
         /// <param name="sqrDistance">Square distance to the explosion's centre</param>
         /// <param name="surfaceArea">The exposed area of the surface catching this energy</param>
         /// <returns>The caught energy, in Joules</returns>
-        public float GetEnergyCaughtBySurfaceAt(float sqrDistance, float surfaceArea)
+        public double GetEnergyCaughtBySurfaceAt(float sqrDistance, float surfaceArea)
         {
             sqrDistance = Mathf.Max(sqrDistance, minDistance*minDistance);
             return GetConeEnergy(sqrDistance, LimitSurfaceArea(surfaceArea, sqrDistance))*energyConversionEfficiency;
@@ -179,11 +193,11 @@ namespace NHSRemont.Gameplay
         /// <param name="sqrDistance">Square distance to the explosion's centre</param>
         /// <param name="limitedArea">The limited surface area catching this energy</param>
         /// <returns>The energy in the cone</returns>
-        private float GetConeEnergy(float sqrDistance, float limitedArea)
+        private double GetConeEnergy(float sqrDistance, float limitedArea)
         {
             float solidAngleFraction = (limitedArea / (4 * Mathf.PI * sqrDistance));
             if (float.IsNaN(solidAngleFraction) || float.IsInfinity(solidAngleFraction))
-                return power * 0.5f;
+                return power * 0.5d;
             return power * solidAngleFraction;
         }
 
@@ -201,6 +215,60 @@ namespace NHSRemont.Gameplay
         private float GetTotalVolumeAt(float distance)
         {
             return (3/4f) * Mathf.PI * distance*distance*distance;
+        }
+
+        public short Serialise(StreamBuffer outStream)
+        {
+            byte[] floats7 = new byte[sizeof(float)*6 + sizeof(double)];
+
+            int index = 0;
+            Protocol.Serialize(position.x, floats7, ref index);
+            Protocol.Serialize(position.y, floats7, ref index);
+            Protocol.Serialize(position.z, floats7, ref index);
+            Protocol.Serialize(blastRadius, floats7, ref index);
+            Protocol.Serialize(power_tnt, floats7, ref index);
+            Protocol.Serialize(energyFalloffExponent, floats7, ref index);
+            Protocol.Serialize(upwardsModifier, floats7, ref index);
+            
+            outStream.Write(floats7, 0, sizeof(float)*7);
+
+            return sizeof(float)*7;
+        }
+
+        public static ExplosionInfo Deserialise(StreamBuffer inStream)
+        {
+            byte[] bytes4 = new byte[sizeof(float)];
+            
+            Vector3 pos;
+            inStream.Read(bytes4, 0, sizeof(float));
+            int offset = 0;
+            Protocol.Deserialize(out pos.x, bytes4, ref offset);
+            
+            inStream.Read(bytes4, 0, sizeof(float));
+            offset = 0;
+            Protocol.Deserialize(out pos.y, bytes4, ref offset);
+            
+            inStream.Read(bytes4, 0, sizeof(float));
+            offset = 0;
+            Protocol.Deserialize(out pos.z, bytes4, ref offset);
+
+            inStream.Read(bytes4, 0, sizeof(float));
+            offset = 0;
+            Protocol.Deserialize(out float blastRadius, bytes4, ref offset);
+            
+            inStream.Read(bytes4, 0, sizeof(float));
+            offset = 0;
+            Protocol.Deserialize(out float power, bytes4, ref offset);
+
+            inStream.Read(bytes4, 0, sizeof(float));
+            offset = 0;
+            Protocol.Deserialize(out float falloff, bytes4, ref offset);
+            
+            inStream.Read(bytes4, 0, sizeof(float));
+            offset = 0;
+            Protocol.Deserialize(out float upMod, bytes4, ref offset);
+
+            return new ExplosionInfo((pos, blastRadius, (double)power*joulesPerKgTnt, falloff, upMod));
         }
 
         public override string ToString()

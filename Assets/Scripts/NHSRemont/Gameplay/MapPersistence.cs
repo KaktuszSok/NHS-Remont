@@ -1,22 +1,28 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using ExitGames.Client.Photon;
 using NHSRemont.Environment.Fractures;
+using NHSRemont.Environment.Terrain;
 using NHSRemont.Gameplay;
-using Unity.Netcode;
+using Photon.Pun;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace NHSRemont.Networking
 {
-    public class MapPersistence : INetworkSerializable
+    [Serializable]
+    public class MapPersistence
     {
-        private readonly struct FracturedObjectState
+        public const byte typeId = 255;
+        
+        [Serializable]
+        public readonly struct FracturedObjectState
         {
-            private readonly List<int> looseOrDestroyedChunkIndices;
-            private readonly List<FractureThis.ChunkState> chunkStates;
+            private readonly List<(int, FractureThis.ChunkState)> chunkStates;
 
             public FracturedObjectState(FractureThis reference)
             {
-                looseOrDestroyedChunkIndices = new List<int>();
-                chunkStates = new List<FractureThis.ChunkState>();
+                chunkStates = new List<(int, FractureThis.ChunkState)>();
                 var allChunks = reference.allChunks;
                 var allChunkStates = reference.chunkStates;
 
@@ -24,35 +30,44 @@ namespace NHSRemont.Networking
                 {
                     if (allChunkStates[i].destroyed)
                     {
-                        looseOrDestroyedChunkIndices.Add(i);
-                        chunkStates.Add(allChunkStates[i]);
+                        chunkStates.Add((i, allChunkStates[i]));
                         continue;
                     }
                     
                     if(allChunks[i].frozen)
                         continue;
                     
-                    looseOrDestroyedChunkIndices.Add(i);
-                    chunkStates.Add(allChunkStates[i]);
+                    chunkStates.Add((i, allChunkStates[i]));
                 }
             }
 
+            /// <summary>
+            /// Use this to apply a saved fracture state to a non-fractured object.
+            /// </summary>
             public void Apply(FractureThis target)
             {
-                target.fractured.Value = true;
+                if (PhotonNetwork.IsMasterClient)
+                {
+                    if(!target.fractured)
+                        target.Fracture();
 
-                target.ChunkStatesChangedClientRpc(looseOrDestroyedChunkIndices.ToArray(), chunkStates.ToArray(), default);
+                    foreach ((int i, FractureThis.ChunkState state) in chunkStates)
+                    {
+                        state.Apply(target.allChunks[i], 0f);
+                    }
+                }
             }
         }
         
         //network serialised:
-        public readonly List<ExplosionInfo> explosionsHistory = new List<ExplosionInfo>();
+        public readonly List<ITerrainEvent> terrainEventsHistory = new();
         
         //save only - not networked:
-        private readonly Dictionary<NetworkObjectReference, FracturedObjectState> fracturedObjects = new();
-        private readonly Dictionary<NetworkObjectReference, NetworkedPhysicsState> physicsStates = new();
+        private readonly Dictionary<int, FracturedObjectState> fracturedObjects = new();
+        private readonly Dictionary<int, NetworkedPhysicsState> physicsStates = new();
 
         /// <summary>
+        /// For saving game state.
         /// Takes a "snapshot" of the state of the currently loaded scene and saves it in this object.
         /// </summary>
         public void PersistLoadedSceneState()
@@ -60,98 +75,123 @@ namespace NHSRemont.Networking
             fracturedObjects.Clear();
             foreach (FractureThis fractureThis in Object.FindObjectsOfType<FractureThis>(true))
             {
-                if (fractureThis.fractured.Value)
+                if (fractureThis.fractured)
                 {
-                    fracturedObjects.Add(fractureThis.NetworkObject, new FracturedObjectState(fractureThis));
+                    int id = fractureThis.photonView.sceneViewId;
+                    if(id == 0)
+                        continue;
+                    fracturedObjects[fractureThis.photonView.sceneViewId] = new FracturedObjectState(fractureThis);
                 }
             }
             
-            Debug.Log("persisted " + fracturedObjects.Count + " fractured objects");
-
             physicsStates.Clear();
             foreach (Rigidbody rb in PhysicsManager.instance.GetAllRigidbodies())
             {
-                NetworkObject networkedObj = rb.GetComponent<NetworkObject>();
-                if(networkedObj == null || networkedObj.IsPlayerObject) //TODO store players separately by some UUID thing
+                PhotonView photonView = rb.GetComponent<PhotonView>();
+                if(photonView == null || rb.CompareTag("Player")) //TODO store players separately by some UUID thing
                     continue;
-                
-                NetworkObjectReference reference = new NetworkObjectReference(networkedObj);
-                physicsStates.Add(reference, new NetworkedPhysicsState().From(rb));
-            }
 
-            Debug.Log("persisted " + physicsStates.Count + " physics objects");
+                int id = photonView.sceneViewId;
+                if(id == 0)
+                    continue;
+                physicsStates.Add(photonView.sceneViewId, new NetworkedPhysicsState().From(rb));
+            }
         }
 
         /// <summary>
+        /// For loading game state from save.
         /// Applies the state of all NetworkObjects to the loaded scene.
         /// This does not do more advanced synchronisation such as applying the explosion history to terrains. For that, check GameManager.
         /// </summary>
         public void ApplyLoadedSceneState()
         {
-            Debug.Log("trying to apply fractured state to " + fracturedObjects.Count + " objects");
             foreach (var entry in fracturedObjects)
             {
-                if (entry.Key.TryGet(out NetworkObject networkObject))
+                PhotonView photonView = PhotonView.Find(entry.Key);
+                if (photonView != null)
                 {
-                    entry.Value.Apply(networkObject.GetComponent<FractureThis>());
+                    entry.Value.Apply(photonView.GetComponent<FractureThis>());
                 }
                 else
                 {
-                    Debug.LogWarning("Could not get FractureThis object with ID " + entry.Key.NetworkObjectId);
+                    Debug.LogWarning("Could not get FractureThis object with ID " + entry.Key);
                 }
             }
 
-            foreach (var networkedPhysicsState in physicsStates)
+            foreach (var entry in physicsStates)
             {
-                if (networkedPhysicsState.Key.TryGet(out NetworkObject networkObject))
+                PhotonView photonView = PhotonView.Find(entry.Key);
+                if (photonView != null)
                 {
-                    networkedPhysicsState.Value.To(networkObject.GetComponent<Rigidbody>());
+                    entry.Value.To(photonView.GetComponent<Rigidbody>());
                 }
                 else
                 {
-                    Debug.LogWarning("Could not get physics object at " + networkedPhysicsState.Value.position);
+                    Debug.LogWarning("Could not get physics object at " + entry.Value.position + " with ID " + entry.Key);
                 }
             }
         }
-
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        
+        public static short Serialise(StreamBuffer outStream, object obj)
         {
-            SerialiseExplosions(serializer);
+            short written = 0;
+            
+            MapPersistence persistence = (MapPersistence)obj;
+            byte[] int1 = new byte[sizeof(int)];
+            int offset = 0;
+
+            int terrainEventsCount = persistence.terrainEventsHistory.Count;
+            Protocol.Serialize(terrainEventsCount, int1, ref offset);
+            outStream.Write(int1, 0, sizeof(int));
+            written += sizeof(int);
+
+            for (int i = 0; i < terrainEventsCount; i++)
+            {
+                ITerrainEvent terrainEvent = persistence.terrainEventsHistory[i];
+                
+                offset = 0;
+                Protocol.Serialize(terrainEvent.GetEventTypeId(), int1, ref offset);
+                outStream.Write(int1, 0, sizeof(int));
+                written += sizeof(int);
+
+                written += terrainEvent.Serialise(outStream);
+            }
+
+            return written;
         }
 
-        private void SerialiseExplosions<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        public static object Deserialise(StreamBuffer inStream, short length)
         {
-            int explosionsCount = 0;
-            if (serializer.IsWriter)
-            {
-                explosionsCount = explosionsHistory.Count;
-            }
-            serializer.SerializeValue(ref explosionsCount);
+            MapPersistence persistence = new MapPersistence();
+            byte[] int1 = new byte[sizeof(int)];
 
-            if (serializer.IsReader)
-            {
-                explosionsHistory.Clear();
-                explosionsHistory.Capacity = explosionsCount;
-            }
+            inStream.Read(int1, 0, sizeof(int));
+            int offset = 0;
+            Protocol.Deserialize(out int terrainEventsCount, int1, ref offset);
 
-            for (int i = 0; i < explosionsCount; i++)
+            persistence.terrainEventsHistory.Capacity = terrainEventsCount;
+            for (int i = 0; i < terrainEventsCount; i++)
             {
-                ExplosionInfo explosion;
-                if (serializer.IsWriter)
-                {
-                    explosion = explosionsHistory[i];
-                }
-                else
-                {
-                    explosion = new ExplosionInfo();
-                }
-                serializer.SerializeValue(ref explosion);
+                inStream.Read(int1, 0, sizeof(int));
+                offset = 0;
+                Protocol.Deserialize(out int id, int1, ref offset);
 
-                if (serializer.IsReader)
+                switch (id)
                 {
-                    explosionsHistory.Add(explosion);
+                    case 0: //Explosion
+                        TerrainExplosionEvent explosionEvent = new TerrainExplosionEvent();
+                        explosionEvent.Deserialise(inStream);
+                        persistence.terrainEventsHistory.Add(explosionEvent);
+                        break;
+                    case 1: //Edit
+                        TerrainEdit editEvent = new TerrainEdit();
+                        editEvent.Deserialise(inStream);
+                        persistence.terrainEventsHistory.Add(editEvent);
+                        break;
                 }
             }
+
+            return persistence;
         }
     }
 }

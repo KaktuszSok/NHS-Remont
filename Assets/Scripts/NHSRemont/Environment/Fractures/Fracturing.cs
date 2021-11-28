@@ -17,7 +17,7 @@ namespace NHSRemont.Environment.Fractures
         /// <param name="totalChunks">Amount of segments to split this object into</param>
         /// <param name="insideMaterial">Material for the inside of this object</param>
         /// <param name="outsideMaterial">Material for the outside of this object</param>
-        /// <param name="breakOffTolerance">Maximum impulse per unit mass that a chunk can withstand before being broken off</param>
+        /// <param name="breakOffTolerance">Maximum impulse per unit density that a chunk can withstand before being broken off</param>
         /// <param name="density">The density of this object, in kg/m^3</param>
         /// <param name="category">The category that broken off chunks get registered to in the physics manager</param>
         /// <returns>The chunk graph manager that contains all the resulting chunks</returns>
@@ -28,7 +28,7 @@ namespace NHSRemont.Environment.Fractures
                 Debug.LogWarning("Mesh for fracturing has more than 1 submeshes!", gameObject);
 
             var verts = mesh.vertices;
-            Vector3 scale = gameObject.transform.localScale;
+            Vector3 scale = gameObject.transform.lossyScale;
             if (scale != Vector3.one)
             {
                 for (var i = 0; i < verts.Length; i++)
@@ -71,7 +71,7 @@ namespace NHSRemont.Environment.Fractures
             // Set up & anchor chunks
             foreach (ChunkNode chunk in chunks)
             {
-                chunk.SetPhysicsDetails(breakOffTolerance, category);
+                chunk.SetPhysicsDetails(chunkMass*breakOffTolerance, category);
             }
             Bounds bounds = new Bounds();
             foreach (Vector3 vert in verts)
@@ -250,6 +250,7 @@ namespace NHSRemont.Environment.Fractures
                 verts[i] -= offset;
             }
             mesh.SetVertices(verts);
+            mesh.Optimize();
             mesh.RecalculateBounds();
             chunk.transform.position += offset;
             

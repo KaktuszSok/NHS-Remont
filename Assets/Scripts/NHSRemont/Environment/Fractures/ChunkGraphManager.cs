@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using NHSRemont.Gameplay;
-using Unity.Netcode;
+using Photon.Pun;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace NHSRemont.Environment.Fractures
 {
@@ -49,14 +50,12 @@ namespace NHSRemont.Environment.Fractures
 
         private void Start()
         {
-            if(NetworkManager.Singleton.IsServer)
-                PhysicsManager.instance.onExplosion += OnExplosion;
+            PhysicsManager.instance.onExplosion += OnExplosion;
         }
 
         private void OnDestroy()
         {
-            if(NetworkManager.Singleton && NetworkManager.Singleton.IsServer)
-                PhysicsManager.instance.onExplosion -= OnExplosion;
+            PhysicsManager.instance.onExplosion -= OnExplosion;
             
             foreach (ChunkNode chunkNode in nodes)
             {
@@ -68,7 +67,10 @@ namespace NHSRemont.Environment.Fractures
         {
             if (graphChanged)
             {
-                SearchGraph(nodes);
+                if (PhotonNetwork.IsMasterClient)
+                {
+                    SearchGraph(nodes);
+                }
                 RecalculateCombinedMesh();
 
                 graphChanged = false;
@@ -100,7 +102,7 @@ namespace NHSRemont.Environment.Fractures
         {
             MeshRenderer combinedRend = gameObject.GetOrAddComponent<MeshRenderer>();
             MeshFilter combinedFilter = gameObject.GetOrAddComponent<MeshFilter>();
-            Mesh combined = new Mesh();
+            Mesh combinedMesh = new Mesh();
             int submeshesCount = 0;
 
             if (nodes.Count > 0)
@@ -109,6 +111,7 @@ namespace NHSRemont.Environment.Fractures
             }
             CombineInstance[][] instances = new CombineInstance[submeshesCount][];
             CombineInstance[] submeshes = new CombineInstance[submeshesCount];
+            int totalVerts = 0;
             for (int sub = 0; sub < submeshesCount; sub++)
             {
                 instances[sub] = new CombineInstance[nodes.Count];
@@ -121,6 +124,7 @@ namespace NHSRemont.Environment.Fractures
                         transform = nodes[i].transform.localToWorldMatrix,
                         subMeshIndex = sub
                     };
+                    totalVerts += nodeMesh.vertexCount;
                 
                     if(sub > 0) continue; //only do these once per node:
                     
@@ -132,7 +136,9 @@ namespace NHSRemont.Environment.Fractures
                     }
                 }
 
-                var submesh = new Mesh();
+                Mesh submesh = new Mesh();
+                if(totalVerts > ushort.MaxValue)
+                    submesh.indexFormat = IndexFormat.UInt32;
                 submesh.CombineMeshes(instances[sub], true, true);
                 submeshes[sub] = new CombineInstance
                 {
@@ -140,14 +146,17 @@ namespace NHSRemont.Environment.Fractures
                     transform = this.transform.worldToLocalMatrix
                 };
             }
-            combined.CombineMeshes(submeshes, false);
-            combined.RecalculateBounds();
-            combinedFilter.sharedMesh = combined;
+            if(totalVerts > ushort.MaxValue)
+                combinedMesh.indexFormat = IndexFormat.UInt32;
+            combinedMesh.CombineMeshes(submeshes, false);
+            combinedMesh.Optimize();
+            combinedMesh.RecalculateBounds();
+            combinedFilter.sharedMesh = combinedMesh;
         }
 
         public void SearchGraph(List<ChunkNode> objects)
         {
-            if(!NetworkManager.Singleton.IsServer)
+            if(!PhotonNetwork.IsMasterClient)
                 return;
             
             var anchors = objects.Where(o => o.isAnchor).ToList();
@@ -214,12 +223,13 @@ namespace NHSRemont.Environment.Fractures
                 chunkNode.OnExplosion(explosionInfo);
             }
         }
-        
+
         private void OnChunkBreakOff(ChunkNode cn)
         {
             nodes.Remove(cn);
-            graphChanged = true;
             cn.GetComponent<MeshRenderer>().enabled = true;
+            
+            graphChanged = true;
         }
     }
 }

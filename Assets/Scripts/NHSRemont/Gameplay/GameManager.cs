@@ -1,41 +1,48 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
-using NHSRemont.Entity;
-using NHSRemont.Environment.Fractures;
 using NHSRemont.Environment.Terrain;
 using NHSRemont.Networking;
 using NHSRemont.Utility;
-using Unity.Netcode;
+using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
+using Hashtable = ExitGames.Client.Photon.Hashtable;
+using Player = NHSRemont.Entity.Player;
 
 namespace NHSRemont.Gameplay
 {
-    public class GameManager : NetworkBehaviour
+    public class GameManager : MonoBehaviourPunCallbacks
     {
         /// <summary>
-        /// When syncing explosion effects, we will sync explosions until this amount of time has been spent on them in the current frame.
-        /// Then, wait for next frame and repeat until all explosions synced.
+        /// When syncing terrain events effects, we will sync explosions until this amount of time has been spent on them in the current frame.
+        /// Then, wait for next frame and repeat until all events synced.
         /// </summary>
-        private const int maxMillisecondsPerFrameForExplosionsSync = 4;
-        
+        private const int maxMillisecondsPerFrameForTerrainEventsSync = 4;
+        private readonly Stopwatch terrainEventsProcessingStopwatch = new Stopwatch();
+
         public static GameManager instance;
 
-        private static MapPersistence testPersistence = new MapPersistence();
-        public MapPersistence persistence //= new MapPersistence();
-        {
-            get => testPersistence;
-            set => testPersistence = value;
-        }
+        //private static MapPersistence testPersistence = new MapPersistence();
+        public MapPersistence persistence = new MapPersistence();
+        // {
+        //     get => testPersistence;
+        //     set => testPersistence = value;
+        // }
 
         private bool mapAlreadySynchronised = false;
+        private bool canBeginProcessingEvents = false;
+
+        private ReactiveTerrain[] terrains;
+        private readonly Queue<(ITerrainEvent terrainEvent, bool isNewEvent)> terrainEventsQueue = new(); //isNewEvent is false for events added from the MapPersistence terrain event history
 
         private void Awake()
         {
-            if (NetworkManager.Singleton == null)
+            if (!PhotonNetwork.IsConnected)
             {
-                NetworkingController.settings.mapName = SceneManager.GetActiveScene().name;
+                NetworkingController.settings.mapIndex = SceneManager.GetActiveScene().buildIndex;
                 ReturnToMenu();
                 return;
             }
@@ -45,12 +52,42 @@ namespace NHSRemont.Gameplay
 
         private void Start()
         {
-            if (NetworkManager.Singleton.IsServer)
-            {
-                PhysicsManager.instance.onExplosion += e => persistence.explosionsHistory.Add(e);
-            }
-
+            terrains = FindObjectsOfType<ReactiveTerrain>();
+            GameObject playerGO = PhotonNetwork.Instantiate("Player", Vector3.zero, Quaternion.identity);
+            PhotonNetwork.LocalPlayer.TagObject = playerGO.GetComponent<Player>();
             RespawnPlayerRandomly();
+
+            if (PhotonNetwork.IsMasterClient)
+            {
+                SynchroniseMap(persistence);
+            }
+        }
+
+        private void Update()
+        {
+            if(terrainEventsQueue.Count == 0 || !canBeginProcessingEvents)
+                return;
+            
+            int eventsThisFrame = 0;
+            terrainEventsProcessingStopwatch.Restart();
+            while (terrainEventsQueue.TryDequeue(out (ITerrainEvent terrainEvent, bool isNewEvent) entry))
+            {
+                int idx = entry.terrainEvent.AffectedTerrain();
+                bool didSomething = entry.terrainEvent.Apply(terrains[idx]);
+                if (didSomething && entry.isNewEvent)
+                {
+                    persistence.terrainEventsHistory.Add(entry.terrainEvent);
+                }
+
+                eventsThisFrame++;
+                if (terrainEventsProcessingStopwatch.ElapsedMilliseconds > maxMillisecondsPerFrameForTerrainEventsSync)
+                {
+                    terrainEventsProcessingStopwatch.Stop();
+                    Debug.Log("events this frame: " + eventsThisFrame);
+                    break; //enough events for this frame.
+                }
+            }
+            terrainEventsProcessingStopwatch.Stop();
         }
 
         /// <summary>
@@ -58,16 +95,16 @@ namespace NHSRemont.Gameplay
         /// </summary>
         public void RespawnPlayerRandomly()
         {
-            NetworkObject playerGO = NetworkManager.SpawnManager.GetLocalPlayerObject();
+            Player player = (Player)PhotonNetwork.LocalPlayer.TagObject;
             var spawnPoints = GameObject.FindGameObjectsWithTag("Respawn");
-            playerGO.GetComponent<Player>().Respawn(spawnPoints.ChooseRandom().transform);
+            player.Respawn(spawnPoints.ChooseRandom().transform);
         }
 
         /// <summary>
         /// Synchronises the loaded map to match the given persistence state
         /// </summary>
-        [ClientRpc]
-        public void SynchroniseMapClientRpc(MapPersistence mapPersistence, ClientRpcParams parameters)
+        [PunRPC]
+        public void SynchroniseMap(MapPersistence mapPersistence)
         {
             if (mapAlreadySynchronised)
             {
@@ -76,7 +113,7 @@ namespace NHSRemont.Gameplay
             }
             mapAlreadySynchronised = true;
             
-            //persistence = mapPersistence;
+            persistence = mapPersistence;
             StartCoroutine(SynchroniseMapAfterInitialisation());
         }
 
@@ -87,38 +124,42 @@ namespace NHSRemont.Gameplay
         {
             yield return new WaitForFixedUpdate();
 
+            //sync network objects state
             persistence.ApplyLoadedSceneState();
-            StartCoroutine(SyncExplosionsDistributed(persistence.explosionsHistory.ToArray()));
+            //sync terrain events
+            var enqueuedBeforeSync = new Queue<(ITerrainEvent terrainEvent, bool isNewEvent)>(terrainEventsQueue);
+            terrainEventsQueue.Clear();
+            foreach (ITerrainEvent terrainEvent in persistence.terrainEventsHistory)
+            {
+                terrainEventsQueue.Enqueue((terrainEvent, false));
+            }
+            foreach (var entry in enqueuedBeforeSync)
+            {
+                terrainEventsQueue.Enqueue(entry);
+            }
+
+            canBeginProcessingEvents = true;
         }
 
-        private IEnumerator SyncExplosionsDistributed(ExplosionInfo[] explosions)
+        public void EnqueueTerrainEvent(ITerrainEvent terrainEvent)
         {
-            var terrains = FindObjectsOfType<ReactiveTerrain>();
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
-            int x = 0;
-            foreach (ExplosionInfo explosionInfo in explosions)
-            {
-                foreach (ReactiveTerrain reactiveTerrain in terrains)
-                {
-                    reactiveTerrain.OnExplosion(explosionInfo);
-                    x++;
-                    if (stopwatch.ElapsedMilliseconds > maxMillisecondsPerFrameForExplosionsSync)
-                    {
-                        stopwatch.Stop();
-                        Debug.Log("explosions this frame: " + x);
-                        x = 0;
-                        yield return null; //enough explosions for this frame.
-                        stopwatch.Restart();
-                    }
-                }
-            }
-            stopwatch.Stop();
+            terrainEventsQueue.Enqueue((terrainEvent, true));
         }
-        
+
         public static void ReturnToMenu()
         {
             SceneManager.LoadScene("Menu");
         }
+
+        #region Callbacks
+
+        public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
+        {
+            base.OnPlayerEnteredRoom(newPlayer);
+            photonView.RPC(nameof(SynchroniseMap), newPlayer,
+                persistence);
+        }
+
+        #endregion
     }
 }
