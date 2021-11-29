@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NHSRemont.Gameplay;
+using NHSRemont.Networking;
 using NHSRemont.Utility;
 using Photon.Pun;
 using UnityEngine;

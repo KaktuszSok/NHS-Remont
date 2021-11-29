@@ -3,6 +3,7 @@ using NHSRemont.Gameplay;
 using NHSRemont.UI;
 using Photon.Pun;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace NHSRemont.Entity
 {
@@ -12,6 +13,7 @@ namespace NHSRemont.Entity
         public Transform cameraTarget;
         private CharacterMovement movement;
         public Health health { get; private set; }
+        private CharacterInventory inventory;
         
         [SerializeField] private float sensitivity = 4f;
 
@@ -21,6 +23,9 @@ namespace NHSRemont.Entity
             {
                 movement = GetComponent<CharacterMovement>();
                 health = GetComponent<Health>();
+                inventory = GetComponent<CharacterInventory>();
+                transform.Find("Leg L").GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+                transform.Find("Leg R").GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
             }
         }
 
@@ -31,6 +36,7 @@ namespace NHSRemont.Entity
                 MainCamera.target = cameraTarget;
                 health.onDeath += GameManager.instance.RespawnPlayerRandomly;
                 health.onHealthChanged += GameHUD.instance.UpdateHealthBar;
+                inventory.OnHotbarSlotSelected += GameHUD.instance.UpdateSelectedHotbarSlot;
             }
         }
         
@@ -50,6 +56,34 @@ namespace NHSRemont.Entity
                 }
             }
         }
+        
+        private void TakeInput()
+        {
+            //Rotation
+            Vector2 mouseDelta = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
+            Vector3 facingAngle = new Vector3(movement.facingAngleX, movement.facingAngleY, 0f);
+            facingAngle.x -= mouseDelta.y * sensitivity;
+            facingAngle.y += mouseDelta.x * sensitivity;
+            movement.SetOrientation(facingAngle);
+
+            //Jumping
+            if(Input.GetKeyDown(KeyCode.Space))
+                movement.JumpPressed();
+            if(Input.GetKeyUp(KeyCode.Space))
+                movement.JumpReleased();
+            
+            //Respawn
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                GameManager.instance.RespawnPlayerRandomly();
+            }
+            
+            //Inventory
+            if (Input.mouseScrollDelta.y != 0)
+            {
+                inventory.ScrollThroughSlots(-(int)Mathf.Sign(Input.mouseScrollDelta.y));
+            }
+        }
 
         private void ConstructionTest()
         {
@@ -57,7 +91,7 @@ namespace NHSRemont.Entity
             {
                 Vector3 maxExtents = new Vector3(1.25f, 1.25f, .2f)/2f;
                 
-                Vector3 fwd = Vector3.Cross(cameraTarget.right, hit.normal).normalized;
+                Vector3 fwd = Vector3.Cross(transform.right, hit.normal).normalized;
                 Vector3 right = Vector3.Cross(fwd, hit.normal).normalized;
                 if (Input.GetKey(KeyCode.LeftShift))
                 {
@@ -86,7 +120,7 @@ namespace NHSRemont.Entity
                 Quaternion rotation = Quaternion.LookRotation(fwd, hit.normal);
 
                 Color32 lineColour = Color.white;
-                var overlaps = Physics.OverlapBox(centre, scale/2f * 0.90f, rotation);
+                var overlaps = Physics.OverlapBox(centre, scale/2f * 0.75f, rotation);
                 if (overlaps.Length > 0)
                 {
                     lineColour = Color.red;
@@ -155,28 +189,6 @@ namespace NHSRemont.Entity
                     
                     PhysicsManager.instance.CreateExplosion(new ExplosionInfo(point, yield, 0.2f));
                 }
-            }
-        }
-
-        private void TakeInput()
-        {
-            //Rotation
-            Vector2 mouseDelta = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
-            Vector3 facingAngle = new Vector3(movement.facingAngleX, movement.facingAngleY, 0f);
-            facingAngle.x -= mouseDelta.y * sensitivity;
-            facingAngle.y += mouseDelta.x * sensitivity;
-            movement.SetOrientation(facingAngle);
-
-            //Jumping
-            if(Input.GetKeyDown(KeyCode.Space))
-                movement.JumpPressed();
-            if(Input.GetKeyUp(KeyCode.Space))
-                movement.JumpReleased();
-            
-            //Respawn
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                GameManager.instance.RespawnPlayerRandomly();
             }
         }
 

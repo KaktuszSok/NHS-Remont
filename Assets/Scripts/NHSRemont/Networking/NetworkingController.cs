@@ -1,134 +1,136 @@
 using System.Collections.Generic;
 using ExitGames.Client.Photon;
 using NHSRemont.Gameplay;
-using NHSRemont.Networking;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class NetworkingController : MonoBehaviour, IMatchmakingCallbacks, IConnectionCallbacks
+namespace NHSRemont.Networking
 {
-    public static NetworkingController instance;
-    public static NHSRoomSettings settings = new NHSRoomSettings(1);
-
-    private void Awake()
+    public class NetworkingController : MonoBehaviour, IMatchmakingCallbacks, IConnectionCallbacks
     {
-        if (instance != null)
+        public static NetworkingController instance;
+        public static NHSRoomSettings settings = new NHSRoomSettings(1);
+
+        private void Awake()
         {
-            Destroy(gameObject);
-            return;
-        }
-        instance = this;
-        PhotonNetwork.AutomaticallySyncScene = true;
-        PhotonNetwork.AddCallbackTarget(this);
-        PhotonPeer.RegisterType(typeof(MapPersistence), MapPersistence.typeId, MapPersistence.Serialise, MapPersistence.Deserialise);
-        DontDestroyOnLoad(gameObject);
-    }
-
-    private void Start()
-    {
-        PhotonNetwork.ConnectUsingSettings();
-    }
-
-    private void Update() //TODO make buttons for this instead of this temporary hotkeys
-    {
-        if (Input.GetKeyDown(KeyCode.J))
-        {
-            if (!PhotonNetwork.IsConnected)
+            if (instance != null)
             {
-                PhotonNetwork.ConnectUsingSettings();
+                Destroy(gameObject);
+                return;
+            }
+            instance = this;
+            PhotonNetwork.AutomaticallySyncScene = true;
+            PhotonNetwork.AddCallbackTarget(this);
+            PhotonPeer.RegisterType(typeof(MapPersistence), MapPersistence.typeId, MapPersistence.Serialise, MapPersistence.Deserialise);
+            DontDestroyOnLoad(gameObject);
+        }
+
+        private void Start()
+        {
+            PhotonNetwork.ConnectUsingSettings();
+        }
+
+        private void Update() //TODO make buttons for this instead of this temporary hotkeys
+        {
+            if (Input.GetKeyDown(KeyCode.J))
+            {
+                if (!PhotonNetwork.IsConnected)
+                {
+                    PhotonNetwork.ConnectUsingSettings();
+                }
+            }
+        
+            if (Input.GetKeyDown(KeyCode.H))
+            {
+                QuickPlay();
+            }
+
+            if (Input.GetKeyDown(KeyCode.X))
+            {
+                ShutdownServerOrClient();
             }
         }
+
+        public void ShutdownServerOrClient()
+        {
+            if(PhotonNetwork.IsMasterClient && GameManager.instance != null)
+                GameManager.instance.persistence.PersistLoadedSceneState();
         
-        if (Input.GetKeyDown(KeyCode.H))
+            PhotonNetwork.Disconnect();
+            GameManager.ReturnToMenu();
+        }
+
+        public void QuickPlay()
+        {
+            if (!PhotonNetwork.InRoom)
+            {
+                PhotonNetwork.JoinOrCreateRoom("testroom", new RoomOptions(), TypedLobby.Default);
+            }
+        }
+
+        #region Callbacks
+        public void OnCreatedRoom()
+        {
+            Debug.Log("created room!");
+            PhotonNetwork.LoadLevel(settings.mapIndex);
+        }
+    
+        public void OnFriendListUpdate(List<FriendInfo> friendList)
+        {
+        }
+
+        public void OnCreateRoomFailed(short returnCode, string message)
+        {
+            Debug.Log("Shit");
+        }
+
+        public void OnJoinedRoom()
+        {
+        }
+
+        public void OnJoinRoomFailed(short returnCode, string message)
+        {
+            Debug.Log("Shit");
+        }
+
+        public void OnJoinRandomFailed(short returnCode, string message)
+        {
+            Debug.Log("Shit");
+        }
+
+        public void OnLeftRoom()
+        {
+        }
+
+        public void OnConnected()
+        {
+            Debug.Log("Connected!");
+        }
+
+        public void OnConnectedToMaster()
         {
             QuickPlay();
         }
 
-        if (Input.GetKeyDown(KeyCode.X))
+        public void OnDisconnected(DisconnectCause cause)
         {
-            ShutdownServerOrClient();
+            Debug.Log("Disconnected.");
+            SceneManager.LoadScene("Menu");
         }
-    }
 
-    public void ShutdownServerOrClient()
-    {
-        if(PhotonNetwork.IsMasterClient && GameManager.instance != null)
-            GameManager.instance.persistence.PersistLoadedSceneState();
-        
-        PhotonNetwork.Disconnect();
-        GameManager.ReturnToMenu();
-    }
-
-    public void QuickPlay()
-    {
-        if (!PhotonNetwork.InRoom)
+        public void OnRegionListReceived(RegionHandler regionHandler)
         {
-            PhotonNetwork.JoinOrCreateRoom("testroom", new RoomOptions(), TypedLobby.Default);
         }
-    }
 
-    #region Callbacks
-    public void OnCreatedRoom()
-    {
-        Debug.Log("created room!");
-        PhotonNetwork.LoadLevel(settings.mapIndex);
-    }
-    
-    public void OnFriendListUpdate(List<FriendInfo> friendList)
-    {
-    }
+        public void OnCustomAuthenticationResponse(Dictionary<string, object> data)
+        {
+        }
 
-    public void OnCreateRoomFailed(short returnCode, string message)
-    {
-        Debug.Log("Shit");
+        public void OnCustomAuthenticationFailed(string debugMessage)
+        {
+        }
+        #endregion
     }
-
-    public void OnJoinedRoom()
-    {
-    }
-
-    public void OnJoinRoomFailed(short returnCode, string message)
-    {
-        Debug.Log("Shit");
-    }
-
-    public void OnJoinRandomFailed(short returnCode, string message)
-    {
-        Debug.Log("Shit");
-    }
-
-    public void OnLeftRoom()
-    {
-    }
-
-    public void OnConnected()
-    {
-        Debug.Log("Connected!");
-    }
-
-    public void OnConnectedToMaster()
-    {
-        QuickPlay();
-    }
-
-    public void OnDisconnected(DisconnectCause cause)
-    {
-        Debug.Log("Disconnected.");
-        SceneManager.LoadScene("Menu");
-    }
-
-    public void OnRegionListReceived(RegionHandler regionHandler)
-    {
-    }
-
-    public void OnCustomAuthenticationResponse(Dictionary<string, object> data)
-    {
-    }
-
-    public void OnCustomAuthenticationFailed(string debugMessage)
-    {
-    }
-    #endregion
 }

@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using ExitGames.Client.Photon;
 using NHSRemont.Environment.Fractures;
 using NHSRemont.Environment.Terrain;
-using NHSRemont.Gameplay;
+using NHSRemont.Networking;
 using Photon.Pun;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace NHSRemont.Networking
+namespace NHSRemont.Gameplay
 {
     [Serializable]
     public class MapPersistence

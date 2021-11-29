@@ -1,11 +1,10 @@
-using MeshProcess;
 using UnityEngine;
 
 namespace NHSRemont.Environment
 {
     public class ConvexDecomposeChildren : MonoBehaviour
     {
-        public VHACD.Parameters m_parameters;
+        public VHACD.NHSRemont.Utility.V_HACD.VHACD.Parameters m_parameters;
         /// <summary>
         /// Should old renderers be replaced with many new renderers, one for each new convex mesh?
         /// </summary>
@@ -66,7 +65,7 @@ namespace NHSRemont.Environment
                 if(meshCollider.convex || !meshCollider.enabled)
                     continue;
 
-                var meshes = VHACD.GenerateConvexMeshes(meshCollider.sharedMesh, m_parameters);
+                var meshes = VHACD.NHSRemont.Utility.V_HACD.VHACD.GenerateConvexMeshes(meshCollider.sharedMesh, m_parameters);
                 for (var i = 0; i < meshes.Count; i++)
                 {
                     GameObject part = new GameObject("convex_" + i);

@@ -1,10 +1,9 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
-namespace MeshProcess
+namespace VHACD.NHSRemont.Utility.V_HACD
 {
     public class VHACD : MonoBehaviour
     {
