@@ -25,12 +25,10 @@ namespace NHSRemont.Environment.Terrain
 
         private void Awake()
         {
-            terrainData = GetComponent<UnityEngine.Terrain>().terrainData;
             treeOptimiser = GetComponent<TreeOptimiser>();
             terrainPos = transform.position;
-            terrainSize = terrainData.size;
             var allTerrains = FindObjectsOfType<UnityEngine.Terrain>();
-            for (var i = 0; i < allTerrains.Length; i++)
+            for (int i = 0; i < allTerrains.Length; i++)
             {
                 if (allTerrains[i].transform == transform)
                 {
@@ -42,6 +40,8 @@ namespace NHSRemont.Environment.Terrain
 
         private void Start()
         {
+            terrainData = GetComponent<UnityEngine.Terrain>().terrainData;
+            terrainSize = terrainData.size;
             PhysicsManager.instance.onExplosion += OnExplosion;
         }
 
@@ -151,12 +151,13 @@ namespace NHSRemont.Environment.Terrain
                 
                 float intensity = (float)explosionInfo.GetEnergyCaughtBySurfaceAt(coordAndDist.sqrDist, 1f);
                 float maxDegrassing = Mathf.Clamp01(intensity / (settings.explosionIntensityForFullyCharred));
-                float factor = settings.charringCurve.Evaluate(Mathf.Sqrt(coordAndDist.sqrDist / blastRadiusSqr));
+                float fractionalDistance = Mathf.Sqrt(coordAndDist.sqrDist / blastRadiusSqr);
+                float factor = settings.charringCurve.Evaluate(fractionalDistance);
                 
                 float degrassing = maxDegrassing*factor/settings.detailsRemovalDifficulty; //amount of degrassing this explosion should cause at this coordinate
                 foreach (var detailMap in detailMaps)
                 {
-                    detailMap.details[z, x] = (int) Mathf.Clamp(detailMap.details[z, x] - (degrassing * 10), 0, 255);
+                    detailMap.details[z, x] = Mathf.Clamp(Mathf.RoundToInt(detailMap.details[z, x] * (1 - degrassing)), 0, 255);
                 }
             }
 

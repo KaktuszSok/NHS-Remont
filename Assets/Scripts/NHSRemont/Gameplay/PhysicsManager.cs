@@ -219,5 +219,13 @@ namespace NHSRemont.Gameplay
 
             return area;
         }
+
+        /// <summary>
+        /// Estimates a cross-sectional surface area for this body given its size (for simple shapes).
+        /// </summary>
+        public float EstimateCrossSection(Vector3 size)
+        {
+            return Mathf.Max(size.x, size.y, size.z); //same assumption as in the function above
+        }
     }
 }

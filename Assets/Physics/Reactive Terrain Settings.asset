@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Reactive Terrain Settings
   m_EditorClassIdentifier: 
   explosionIntensityForFullyCharred: 14000
-  detailsRemovalDifficulty: 0.5
+  detailsRemovalDifficulty: 0.4
   terrainDeformationFactor: 1
   charringCurve:
     serializedVersion: 2

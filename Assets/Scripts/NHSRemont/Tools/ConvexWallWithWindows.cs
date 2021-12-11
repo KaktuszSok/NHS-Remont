@@ -15,17 +15,20 @@ namespace NHSRemont.Tools
         [SerializeField] private Vector2 windowSize = new Vector2(1f, 1.5f);
         [Tooltip("How high above the ground are the windows?")]
         [SerializeField] private float windowHeight = 1f;
+        [Tooltip("How far are the windows shifted to the side?")]
+        [SerializeField] private float windowOffset = 0f;
         [SerializeField] private Material outsideMaterial, insideMaterial;
 
         [ContextMenu("Generate")]
         [SuppressMessage("ReSharper", "LocalVariableHidesMember")]
-        private void GenerateWallWithWindows()
+        public void GenerateWallWithWindows()
         {
             RemoveGeneratedGameobjects();
             AutoDetectMaterials();
 
             //window dimensions relative to transform scaling
             float windowHeight = this.windowHeight / transform.localScale.y;
+            float windowOffset = this.windowOffset / transform.localScale.x;
             Vector2 windowSize = new Vector2(this.windowSize.x / transform.localScale.x,
                 this.windowSize.y / transform.localScale.y);
             
@@ -35,6 +38,10 @@ namespace NHSRemont.Tools
             BoxCollider wallCollider = gameObject.GetComponent<BoxCollider>();
             FractureThis fracture = gameObject.GetComponent<FractureThis>();
             bool useSubmeshes = fracture == null; //fractures do not support multiple submeshes
+            if (fracture != null)
+            {
+                fracture.SetMaterials(insideMaterial, outsideMaterial);
+            }
 
             Vector3 wallSize = wallCollider.size;
             Vector3 wallCentre = wallCollider.center;
@@ -63,9 +70,23 @@ namespace NHSRemont.Tools
             for (int i = 0; i < numWindows+1; i++)
             {
                 float offsetFromLeft = i*(middleCubeSize.x + windowSize.x); //offset of the left side of this window from the left side of the wall
+                Vector3 thisCubeSize = middleCubeSize;
+                if (i == 0)
+                {
+                    thisCubeSize += Vector3.right*windowOffset;
+                }
+                else if (i == numWindows)
+                {
+                    thisCubeSize -= Vector3.right * windowOffset;
+                    offsetFromLeft += windowOffset;
+                }
+                else
+                {
+                    offsetFromLeft += windowOffset;
+                }
                 Vector3 middleCubeCorner = new Vector3(offsetFromLeft, windowHeight, 0f);
-                Vector3 middleCubeCentre = wallCentre + middleCubeCorner + (middleCubeSize/2f) - wallSize/2f;
-                Transform middleCube = CreateCube(generatedParent, middleCubeSize, middleCubeCorner, useSubmeshes);
+                Vector3 middleCubeCentre = wallCentre + middleCubeCorner + (thisCubeSize/2f) - wallSize/2f;
+                Transform middleCube = CreateCube(generatedParent, thisCubeSize, middleCubeCorner, useSubmeshes);
                 middleCube.localPosition = middleCubeCentre;
                 middleCube.name = "Middle Cube (" + i + ")";
                 if (fracture)
@@ -76,7 +97,7 @@ namespace NHSRemont.Tools
                     if (i == numWindows)
                         anchor |= Anchor.Right & fracture.anchor;
                     FractureThis.CopyToSimilarObject(fracture, middleCube.gameObject,
-                        VectorUtils.Divide(middleCubeSize, wallSize), anchor, false);
+                        VectorUtils.Divide(thisCubeSize, wallSize), anchor, false);
                 }
             }
 
@@ -102,7 +123,7 @@ namespace NHSRemont.Tools
         }
 
         [ContextMenu("Remove Generated")]
-        private void RemoveGeneratedGameobjects()
+        public void RemoveGeneratedGameobjects()
         {
             Transform generatedParent = transform.Find(generatedParentName);
             if(generatedParent == null) return;

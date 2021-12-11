@@ -9,7 +9,7 @@ namespace NHSRemont.Environment.Terrain
         public float explosionIntensityForFullyCharred = 14000f;
         
         [Tooltip("A multiplier to the required explosion intensity to remove grass compared to charring the land")]
-        public float detailsRemovalDifficulty = 0.5f;
+        public float detailsRemovalDifficulty = 0.4f;
         
         [Tooltip("A multiplier to the depth of craters")]
         public float terrainDeformationFactor = 1f;

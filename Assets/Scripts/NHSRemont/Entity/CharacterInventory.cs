@@ -1,29 +1,39 @@
 ﻿using System;
+using System.Collections.Generic;
 using NHSRemont.Gameplay.ItemSystem;
+using NHSRemont.Networking;
 using Photon.Pun;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace NHSRemont.Entity
 {
-    public class CharacterInventory : EntityInventory
+    public class CharacterInventory : Inventory
     {
         private const int slotsCount = 9;
+        private const double droppedItemsLifetime = 150;
 
-        public Transform heldItemParent;
-        public override Inventory inventory { get; } = new Inventory(slotsCount);
-        private int hotbarSlot;
-        private ItemType heldItem;
+        public int hotbarSlot { get; private set; }
+        private Item heldItem;
 
         public Action<int> OnHotbarSlotSelected;
 
-        private void Start()
+        private void Awake()
         {
-            inventory.onSlotContentsChanged += (stack, idx) =>
+            size = slotsCount;
+        }
+
+        protected override void Start()
+        {
+            base.Start();
+            SelectSlot(0);
+            onSlotContentsChanged += (item, idx) =>
             {
                 if (idx == hotbarSlot)
+                {
                     UpdateHeldItem(hotbarSlot, hotbarSlot);
+                }
             };
-            SelectSlot(0);
         }
 
         public void SelectSlot(int slot)
@@ -42,18 +52,55 @@ namespace NHSRemont.Entity
 
         private void UpdateHeldItem(int oldSlot, int newSlot)
         {
-            ItemType newHeldItem = inventory.GetSlot(newSlot).type;
-            if(oldSlot == newSlot && newHeldItem == heldItem)
-                return; //same slot and same item type - no need to update held item
+            Item oldItem = slots[oldSlot];
+            Item newItem = slots[newSlot];
+
+            if(oldSlot != newSlot && oldItem == newItem) return;
             
-            //destroy old
-            Transform currHeld = heldItemParent.GetChild(0);
-            if(currHeld != null)
-                PhotonNetwork.Destroy(currHeld.gameObject);
+            if(oldItem != null)
+                oldItem.gameObject.SetActive(false);
             
-            //create new
-            PhotonNetwork.Instantiate()
+            if(newItem != null)
+                newItem.gameObject.SetActive(true);
+
+            heldItem = newItem;
         }
 
+        public override ICollection<Item> DropAllItems(bool individually = true)
+        {
+            var drops = base.DropAllItems(individually);
+            foreach (Item drop in drops)
+            {
+                drop.transform.position += Random.insideUnitSphere * 0.025f;
+            }
+
+            return drops;
+        }
+
+        public override Item DropItemsInSlot(int slot, int amount = -1)
+        {
+            Item drop = base.DropItemsInSlot(slot, amount);
+            if (drop)
+            {
+                drop.despawnTime = PhotonNetwork.Time + droppedItemsLifetime;
+            }
+            return drop;
+        }
+
+        public override void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
+        {
+            base.OnPhotonSerializeView(stream, info);
+            if (stream.IsWriting)
+            {
+                stream.SendNext(hotbarSlot);
+            }
+            if (stream.IsReading)
+            {
+                int oldSlot = hotbarSlot;
+                hotbarSlot = stream.ReceiveNext<int>();
+                UpdateHeldItem(oldSlot, hotbarSlot);
+            }
+            
+        }
     }
 }

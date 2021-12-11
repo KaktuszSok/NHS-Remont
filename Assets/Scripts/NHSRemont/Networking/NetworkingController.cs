@@ -11,7 +11,7 @@ namespace NHSRemont.Networking
     public class NetworkingController : MonoBehaviour, IMatchmakingCallbacks, IConnectionCallbacks
     {
         public static NetworkingController instance;
-        public static NHSRoomSettings settings = new NHSRoomSettings(1);
+        public static NHSRoomSettings settings = new NHSRoomSettings(3);
 
         private void Awake()
         {
@@ -40,6 +40,11 @@ namespace NHSRemont.Networking
                 {
                     PhotonNetwork.ConnectUsingSettings();
                 }
+            }
+
+            if (Input.GetKeyDown(KeyCode.KeypadMultiply))
+            {
+                PhotonNetwork.OfflineMode = !PhotonNetwork.OfflineMode;
             }
         
             if (Input.GetKeyDown(KeyCode.H))

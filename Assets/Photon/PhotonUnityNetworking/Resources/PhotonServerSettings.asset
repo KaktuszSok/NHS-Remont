@@ -17,7 +17,7 @@ MonoBehaviour:
     AppIdFusion: 
     AppIdChat: 85098695-0ea3-4250-9f68-e300ef9d5760
     AppIdVoice: 
-    AppVersion: 0.1
+    AppVersion: 0.2
     UseNameServer: 1
     FixedRegion: 
     Server: 
@@ -34,17 +34,10 @@ MonoBehaviour:
   RunInBackground: 1
   StartInOfflineMode: 0
   RpcList:
-  - ChunkStatesChangedClientRpc
   - ClickRpc
-  - DestroyRpc
-  - SynchroniseMapClientRpc
   - CreateExplosionRpc
-  - SynchroniseMapRpc
+  - DestroyRpc
   - SynchroniseMap
-  - PullRPC
-  - PickUpRPC
-  - AddItemStackRPC
-  - AddSimpleItemStackRPC
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

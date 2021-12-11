@@ -72,7 +72,7 @@ namespace NHSRemont.Environment.Fractures
         
         //runtime
         private new Collider collider;
-        private float mass;
+        public float mass { get; private set; }
         [SerializeField, HideInInspector]
         private ChunkGraphManager chunksGraph;
         public ChunkNode[] allChunks;
@@ -98,24 +98,22 @@ namespace NHSRemont.Environment.Fractures
                 Destroy(this);
                 return;
             }
-            
-            Vector3 scale = transform.lossyScale;
-            MeshFilter mf = GetComponent<MeshFilter>();
-            if (mf)
-            {
-                float volume = mf.sharedMesh.Volume() * scale.x * scale.y * scale.z;
-                mass = volume * density;
-            }
 
             //combine child graphs
             if (independent)
             {
                 Combine();
+                photonView.Synchronization = ViewSynchronization.UnreliableOnChange;
+                PhysicsManager.instance.onExplosion += OnExplosion;
+            }
+
+            mass = 0f;
+            for (int i = 0; i < allChunks.Length; i++)
+            {
+                mass += allChunks[i].mass;
             }
             
             chunksGraph.gameObject.SetActive(false);
-
-            PhysicsManager.instance.onExplosion += OnExplosion;
         }
         
         private void Combine()
@@ -147,6 +145,7 @@ namespace NHSRemont.Environment.Fractures
                     mergedChildren.Add(fracture);
                     AddGraph(fracture);
                     CombineChildGraphs(child);
+                    fracture.enabled = false;
                 }
             }
             void AddGraph(FractureThis fracture)
@@ -243,14 +242,11 @@ namespace NHSRemont.Environment.Fractures
                 {
                     Destroy(mergedGraphs[i].gameObject);
                 }
-
-                allChunks = combinedChunks.ToArray();
-                chunks = allChunks.Length;
             }
             
+            allChunks = combinedChunks.ToArray();
+            chunks = allChunks.Length;
             chunkStates = new ChunkState[allChunks.Length];
-
-            photonView.Synchronization = ViewSynchronization.ReliableDeltaCompressed;
         }
 
         public void OnDestroy()
@@ -276,13 +272,13 @@ namespace NHSRemont.Environment.Fractures
 
         private void OnExplosion(ExplosionInfo explosionInfo)
         {
-            if(!PhotonNetwork.IsMasterClient || fractured || collider == null)
+            if(!independent || !PhotonNetwork.IsMasterClient || fractured || collider == null)
                 return;
-            
+
             float chunkMass = mass / chunks;
             float impulseToFracture = chunkMass * internalStrength;
             (Vector3 impulse, Vector3 _) =
-                explosionInfo.CalculateImpulseAndPoint(transform, collider.bounds, chunkMass);
+                explosionInfo.CalculateImpulseAndPoint(transform, collider, chunkMass);
             if (impulse.sqrMagnitude < impulseToFracture * impulseToFracture)
                 return;
 
@@ -321,10 +317,7 @@ namespace NHSRemont.Environment.Fractures
             if (rend == null || !rend.enabled) //most likely a combined graph that will be generated at runtime from children
                 return null;
             
-            if (outsideMaterial == null)
-                outsideMaterial = rend.sharedMaterial;
-            if (insideMaterial == null)
-                insideMaterial = outsideMaterial;
+            AutoDetectMaterials();
 
             int seed = new Random().Next();
             ChunkGraphManager fracture = Fracturing.FractureGameObject(
@@ -345,13 +338,41 @@ namespace NHSRemont.Environment.Fractures
             return fracture;
         }
 
+        private void AutoDetectMaterials()
+        {
+            if (outsideMaterial == null)
+            {
+                outsideMaterial = GetComponent<Renderer>()?.sharedMaterial;
+            }
+
+            if (insideMaterial == null)
+            {
+                Renderer rend = GetComponent<Renderer>();
+                if (!rend)
+                {
+                    insideMaterial = outsideMaterial;
+                }
+                else
+                {
+                    var mats = rend.sharedMaterials;
+                    insideMaterial = mats.Length > 1 ? mats[1] : mats[0];
+                }
+            }
+        }
+
+        public void SetMaterials(Material inside, Material outside)
+        {
+            insideMaterial = inside;
+            outsideMaterial = outside;
+        }
+        
         public override void OnMasterClientSwitched(Player newMasterClient)
         {
             if (newMasterClient.IsLocal)
             {
                 foreach (ChunkNode chunkNode in allChunks)
                 {
-                    if (!chunkNode.frozen)
+                    if (chunkNode != null && !chunkNode.frozen)
                     {
                         chunkNode.syncedRb.isSimulatedLocally = true;
                     }
@@ -373,7 +394,7 @@ namespace NHSRemont.Environment.Fractures
                 }
 
                 //write states of all chunks
-                for (int i = 0; i < allChunks.Length; i++)
+                for (int i = 0; i < chunkStates.Length; i++)
                 {
                     ChunkState prevState = chunkStates[i];
                     if (prevState.destroyed)
@@ -413,6 +434,8 @@ namespace NHSRemont.Environment.Fractures
                     stream.SendNext(true); //true = this chunk is loose or destroyed
                     chunkStates[i].Send(stream);
                 }
+                
+                Debug.Log(name + " stream sent length: " + stream.Count, this);
             }
 
             if (stream.IsReading)
@@ -421,6 +444,7 @@ namespace NHSRemont.Environment.Fractures
                     Fracture();
 
                 float lag = (float) (PhotonNetwork.Time - info.SentServerTime);
+                Debug.Log(name + " stream received length: " + stream.Count + " (lag = " + lag + " seconds)", this);
 
                 for (int i = 0; i < chunkStates.Length; i++)
                 {
@@ -456,7 +480,7 @@ namespace NHSRemont.Environment.Fractures
         {
             FractureThis copy = target.AddComponent<FractureThis>();
             copy.anchor = newAnchors;
-            copy.chunks = (int)Mathf.Max(2, source.chunks * scaleFactor.x * scaleFactor.y * scaleFactor.z);
+            copy.chunks = Mathf.Max(2, Mathf.RoundToInt(source.chunks * scaleFactor.x * scaleFactor.y * scaleFactor.z));
             copy.density = source.density;
             copy.internalStrength = source.internalStrength;
             copy.insideMaterial = source.insideMaterial;

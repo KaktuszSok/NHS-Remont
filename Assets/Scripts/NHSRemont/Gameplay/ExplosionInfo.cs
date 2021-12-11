@@ -140,6 +140,21 @@ namespace NHSRemont.Gameplay
             return (CalculateImpulse(sqDist, area, mass) * direction, contactPoint);
         }
         
+        /// <returns>The impulse this explosion would apply to this body, and the world point at which it would be applied</returns>
+        public (Vector3, Vector3) CalculateImpulseAndPoint(Transform body, Collider bodyCollider, float mass)
+        {
+            Vector3 contactPoint = bodyCollider.ClosestPoint(position);
+            float sqDist = (contactPoint - position).sqrMagnitude;
+            if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position);
+            
+            Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
+            Vector3 direction = (contactPoint - adjustedPosition).normalized;
+            sqDist = Mathf.Max(sqDist, minDistance*minDistance);
+            
+            float area = PhysicsManager.instance.EstimateCrossSection(body, bodyCollider.bounds);
+            return (CalculateImpulse(sqDist, area, mass) * direction, contactPoint);
+        }
+        
         /// <returns>Magnitude of the impulse</returns>
         public float CalculateImpulse(float sqrDistance, float surfaceArea, float rbMass)
         {

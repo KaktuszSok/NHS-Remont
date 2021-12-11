@@ -10,18 +10,19 @@ namespace NHSRemont.Gameplay.ItemSystem
         [Serializable]
         private struct Spawnable
         {
-            public ItemType type;
+            public Item type;
             public int amount;
 
-            public ItemStack CreateStack()
+            public Item SpawnInWorld(Vector3 where)
             {
-                return new ItemStack(type, amount);
+                Item item = Item.CreateInstance(type, where, true, true);
+                item.amount = amount;
+                return item;
             }
         }
         [SerializeField] private Spawnable[] spawnables = Array.Empty<Spawnable>();
         public float timeBetweenSpawns = 90f;
 
-        private DroppedItemStack currentDropped;
         private float spawnTimer = 0f;
 
         private void Update()
@@ -41,15 +42,9 @@ namespace NHSRemont.Gameplay.ItemSystem
 
         public void Spawn()
         {
-            if (currentDropped != null)
-            {
-                PhotonNetwork.Destroy(currentDropped.gameObject);
-            }
-        
             Spawnable chosen = spawnables.ChooseRandom();
-            ItemStack stack = chosen.CreateStack();
-            DroppedItemStack.CreateFromStack(stack, transform.position);
-        
+            Item spawned = chosen.SpawnInWorld(transform.position);
+            spawned.despawnTime = PhotonNetwork.Time + timeBetweenSpawns;            
             spawnTimer = timeBetweenSpawns;
         }
     }

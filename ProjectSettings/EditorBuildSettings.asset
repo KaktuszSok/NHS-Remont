@@ -14,4 +14,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/TestFlat/TestFlat.unity
     guid: 1f9cba2d664bcea47a9985703d814ca7
+  - enabled: 1
+    path: Assets/Scenes/Kromolow/Kromolow.unity
+    guid: e14e6131b32fac4479445c286f9d4dc9
   m_configObjects: {}

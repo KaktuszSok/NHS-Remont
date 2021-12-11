@@ -1,4 +1,3 @@
-using System;
 using NHSRemont.Gameplay;
 using NHSRemont.UI;
 using Photon.Pun;
@@ -23,7 +22,7 @@ namespace NHSRemont.Entity
             {
                 movement = GetComponent<CharacterMovement>();
                 health = GetComponent<Health>();
-                inventory = GetComponent<CharacterInventory>();
+                inventory = GetComponentInChildren<CharacterInventory>();
                 transform.Find("Leg L").GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
                 transform.Find("Leg R").GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
             }
@@ -37,6 +36,7 @@ namespace NHSRemont.Entity
                 health.onDeath += GameManager.instance.RespawnPlayerRandomly;
                 health.onHealthChanged += GameHUD.instance.UpdateHealthBar;
                 inventory.OnHotbarSlotSelected += GameHUD.instance.UpdateSelectedHotbarSlot;
+                inventory.onSlotContentsChanged += GameHUD.instance.UpdateHotbarItemDisplay;
             }
         }
         
@@ -82,6 +82,11 @@ namespace NHSRemont.Entity
             if (Input.mouseScrollDelta.y != 0)
             {
                 inventory.ScrollThroughSlots(-(int)Mathf.Sign(Input.mouseScrollDelta.y));
+            }
+
+            if (Input.GetKeyDown(KeyCode.Q))
+            {
+                inventory.DropItemsInSlot(inventory.hotbarSlot, 1);
             }
         }
 
@@ -194,6 +199,7 @@ namespace NHSRemont.Entity
 
         public void Respawn(Transform spawnPoint)
         {
+            inventory.DropAllItems();
             transform.position = spawnPoint.position;
             CharacterMovement move = GetComponent<CharacterMovement>();
             move.SetOrientation(spawnPoint.eulerAngles);

@@ -29,5 +29,25 @@ namespace NHSRemont.Tools
                 DestroyImmediate(chunkGraphManager.gameObject);
             }
         }
+
+        [ContextMenu("Apply Convex Mesh Tools in Children")]
+        public void ApplyChildMeshTools()
+        {
+            var meshTools = GetComponentsInChildren<ConvexWallWithWindows>();
+            foreach (ConvexWallWithWindows tool in meshTools)
+            {
+                tool.GenerateWallWithWindows();
+            }
+        }
+
+        [ContextMenu("Remove Convex Mesh Tool Effects in Children")]
+        public void RemoveChildMeshToolEffects()
+        {
+            var meshTools = GetComponentsInChildren<ConvexWallWithWindows>();
+            foreach (ConvexWallWithWindows tool in meshTools)
+            {
+                tool.RemoveGeneratedGameobjects();
+            }
+        }
     }
 }

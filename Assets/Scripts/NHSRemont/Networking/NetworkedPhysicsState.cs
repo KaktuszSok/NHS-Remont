@@ -58,5 +58,10 @@ namespace NHSRemont.Networking
             velocity = stream.ReceiveNext<Vector3>();
             angularVelocity = stream.ReceiveNext<Vector3>();
         }
+
+        public override string ToString()
+        {
+            return "(pos=" + position + ", rot=" + rotation + ", vel=" + velocity + ", angVel=" + angularVelocity + ")";
+        }
     }
 }

@@ -21,10 +21,10 @@ namespace NHSRemont.Environment.Fractures
         [SerializeField]
         private SerialisableMesh savedMesh;
         public float mass = 10f;
-        [SerializeField, HideInInspector]
+        [SerializeField, ReadOnly]
         private float maxImpulse = 3f;
         public bool isAnchor = false;
-        [SerializeField, HideInInspector]
+        [SerializeField, ReadOnly]
         private PhysicsManager.PhysObjectType category;
         [SerializeField, HideInInspector] private ChunkNode[] savedNeighbours; //because unity can't serialise Serializables...
        
@@ -87,6 +87,18 @@ namespace NHSRemont.Environment.Fractures
             return neighbours;
         }
 
+        private void FixedUpdate()
+        {
+            if (!frozen && PhotonNetwork.IsMasterClient)
+            {
+                if (transform.position.y < -1000)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+            }
+        }
+
         private void OnDestroy()
         {
             DetachFromNeighbours();
@@ -104,7 +116,7 @@ namespace NHSRemont.Environment.Fractures
             if(!PhotonNetwork.IsMasterClient || !explosionInfo.IsPointWithinBlastRadius(transform.position))
                 return;
 
-            (Vector3 impulse, Vector3 point) = explosionInfo.CalculateImpulseAndPoint(transform, collider.bounds, mass);
+            (Vector3 impulse, Vector3 point) = explosionInfo.CalculateImpulseAndPoint(transform, collider, mass);
             ApplyImpulseAtPoint(impulse, point);
         }
 
@@ -143,6 +155,7 @@ namespace NHSRemont.Environment.Fractures
 
             transform.SetParent(PhysicsManager.instance.transform);
 
+            Debug.Log(name + " unfrozen!", this);
             return syncedRb.rb;
         }
 
