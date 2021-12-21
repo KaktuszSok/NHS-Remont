@@ -171,14 +171,7 @@ namespace NHSRemont.Entity
         
         private void ExplosionTestInput()
         {
-            bool clicked = false;
-
-            if (Input.GetMouseButtonDown(0))
-                clicked = true;
-            else if (Input.GetMouseButton(3)) //rapid-fire
-                clicked = true;
-            
-            if (clicked)
+            if (Input.GetMouseButtonDown(0) || Input.GetMouseButton(3)) //MB3 = rapid fire
             {
                 Transform camTransform = cameraTarget;
                 if (Physics.Raycast(camTransform.position, camTransform.forward, out RaycastHit hit, 4000f))
@@ -191,8 +184,14 @@ namespace NHSRemont.Entity
 
                     Vector3 point = hit.point;
                     point -= camTransform.forward * 0.05f;
-                    
-                    PhysicsManager.instance.CreateExplosion(new ExplosionInfo(point, yield, 0.2f));
+
+                    ExplosionInfo explosionInfo = new ExplosionInfo(point, yield, 0.2f);
+                    if (Input.GetMouseButton(4))
+                    {
+                        explosionInfo = new ExplosionInfo((explosionInfo.position, 0.25f, explosionInfo.power,
+                            explosionInfo.energyFalloffExponent, explosionInfo.upwardsModifier));
+                    }
+                    PhysicsManager.instance.CreateExplosion(explosionInfo);
                 }
             }
         }

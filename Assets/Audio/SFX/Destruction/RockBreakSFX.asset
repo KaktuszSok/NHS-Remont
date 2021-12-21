@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 603f822840978fd48896037d51b0f412, type: 3}
+  m_Name: RockBreakSFX
+  m_EditorClassIdentifier: 
+  clips:
+  - {fileID: 8300000, guid: ea258ecb385d3594a838d246da224a82, type: 3}
+  - {fileID: 8300000, guid: 5997a3aab23925a448fd24813195f842, type: 3}
+  - {fileID: 8300000, guid: 721566bb00b0f0e429f702256229729f, type: 3}
+  - {fileID: 8300000, guid: 4758d01d54acc034d86359cc13a90234, type: 3}
+  mixerGroup: {fileID: 7012991015940877776, guid: a999622add1935b4db493908272127ec, type: 2}
+  volume: 0.6
+  randomiseVol: 0.25
+  pitch: 1
+  randomisePitch: 0.35
+  rangeMin: 1.5
+  rangeMax: 50
+  omnipresent: 0

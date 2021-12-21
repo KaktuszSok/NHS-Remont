@@ -9,8 +9,6 @@ using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
-using Hashtable = ExitGames.Client.Photon.Hashtable;
-using Player = NHSRemont.Entity.Player;
 
 namespace NHSRemont.Gameplay
 {
@@ -54,7 +52,7 @@ namespace NHSRemont.Gameplay
         {
             terrains = FindObjectsOfType<ReactiveTerrain>();
             GameObject playerGO = PhotonNetwork.Instantiate("Player", Vector3.zero, Quaternion.identity);
-            PhotonNetwork.LocalPlayer.TagObject = playerGO.GetComponent<Player>();
+            PhotonNetwork.LocalPlayer.TagObject = playerGO.GetComponent<Entity.Player>();
             RespawnPlayerRandomly();
 
             if (PhotonNetwork.IsMasterClient)
@@ -95,7 +93,7 @@ namespace NHSRemont.Gameplay
         /// </summary>
         public void RespawnPlayerRandomly()
         {
-            Player player = (Player)PhotonNetwork.LocalPlayer.TagObject;
+            Entity.Player player = (Entity.Player)PhotonNetwork.LocalPlayer.TagObject;
             var spawnPoints = GameObject.FindGameObjectsWithTag("Respawn");
             player.Respawn(spawnPoints.ChooseRandom().transform);
         }
@@ -124,8 +122,6 @@ namespace NHSRemont.Gameplay
         {
             yield return new WaitForFixedUpdate();
 
-            //sync network objects state
-            persistence.ApplyLoadedSceneState();
             //sync terrain events
             var enqueuedBeforeSync = new Queue<(ITerrainEvent terrainEvent, bool isNewEvent)>(terrainEventsQueue);
             terrainEventsQueue.Clear();
@@ -153,7 +149,7 @@ namespace NHSRemont.Gameplay
 
         #region Callbacks
 
-        public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
+        public override void OnPlayerEnteredRoom(Player newPlayer)
         {
             base.OnPlayerEnteredRoom(newPlayer);
             photonView.RPC(nameof(SynchroniseMap), newPlayer,

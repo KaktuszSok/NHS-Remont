@@ -36,12 +36,8 @@ namespace NHSRemont.Tools
             generatedParent.SetParent(transform, false);
 
             BoxCollider wallCollider = gameObject.GetComponent<BoxCollider>();
-            FractureThis fracture = gameObject.GetComponent<FractureThis>();
+            Fracturable fracture = gameObject.GetComponent<Fracturable>();
             bool useSubmeshes = fracture == null; //fractures do not support multiple submeshes
-            if (fracture != null)
-            {
-                fracture.SetMaterials(insideMaterial, outsideMaterial);
-            }
 
             Vector3 wallSize = wallCollider.size;
             Vector3 wallCentre = wallCollider.center;
@@ -56,10 +52,8 @@ namespace NHSRemont.Tools
                 bottomCube.localPosition = bottomCubeCentre;
                 bottomCube.name = "Bottom Cube";
                 if (fracture)
-                    FractureThis.CopyToSimilarObject(fracture, bottomCube.gameObject,
-                        VectorUtils.Divide(bottomCubeSize, wallSize),
-                        (Anchor.Left | Anchor.Right | Anchor.Bottom) & fracture.anchor,
-                        false);
+                    Fracturable.CopyToSimilarObject(fracture, bottomCube.gameObject,
+                        VectorUtils.Divide(bottomCubeSize, wallSize), false);
             }
 
             //create middle cubes
@@ -91,13 +85,8 @@ namespace NHSRemont.Tools
                 middleCube.name = "Middle Cube (" + i + ")";
                 if (fracture)
                 {
-                    Anchor anchor = Anchor.Bottom | Anchor.Top;
-                    if (i == 0)
-                        anchor |= Anchor.Left & fracture.anchor;
-                    if (i == numWindows)
-                        anchor |= Anchor.Right & fracture.anchor;
-                    FractureThis.CopyToSimilarObject(fracture, middleCube.gameObject,
-                        VectorUtils.Divide(thisCubeSize, wallSize), anchor, false);
+                    Fracturable.CopyToSimilarObject(fracture, middleCube.gameObject,
+                        VectorUtils.Divide(thisCubeSize, wallSize), false);
                 }
             }
 
@@ -110,9 +99,8 @@ namespace NHSRemont.Tools
             topCube.localPosition = topCubeCentre;
             topCube.name = "Top Cube";
             if(fracture)
-                FractureThis.CopyToSimilarObject(fracture, topCube.gameObject, VectorUtils.Divide(topCubeSize, wallSize), 
-                    (Anchor.Left | Anchor.Right | Anchor.Top) & fracture.anchor,
-                    false);
+                Fracturable.CopyToSimilarObject(fracture, topCube.gameObject,
+                    VectorUtils.Divide(topCubeSize, wallSize), false);
 
             //disable own components
             var rend = GetComponent<Renderer>();
@@ -132,7 +120,7 @@ namespace NHSRemont.Tools
             var rend = GetComponent<Renderer>();
             if (rend) rend.enabled = true;
             GetComponent<BoxCollider>().enabled = true;
-            var frac = GetComponent<FractureThis>();
+            var frac = GetComponent<Fracturable>();
             if (frac) frac.enabled = true;
         }
 

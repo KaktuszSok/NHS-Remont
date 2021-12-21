@@ -9,7 +9,7 @@ namespace NHSRemont.Utility
         [SerializeField]
         private SerialisableMesh savedMesh;
 
-        private void Awake()
+        private void OnEnable()
         {
             ApplyMesh();
         }

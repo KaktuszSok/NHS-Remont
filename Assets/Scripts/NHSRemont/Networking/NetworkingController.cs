@@ -60,9 +60,6 @@ namespace NHSRemont.Networking
 
         public void ShutdownServerOrClient()
         {
-            if(PhotonNetwork.IsMasterClient && GameManager.instance != null)
-                GameManager.instance.persistence.PersistLoadedSceneState();
-        
             PhotonNetwork.Disconnect();
             GameManager.ReturnToMenu();
         }

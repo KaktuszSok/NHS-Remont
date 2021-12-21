@@ -12,16 +12,12 @@ namespace NHSRemont.Environment.Fractures
         /// Creates a fractured version of this gameobject.
         /// </summary>
         /// <param name="gameObject">The gameobject to fracture</param>
-        /// <param name="anchor">Where should the anchor chunks be?</param>
         /// <param name="seed">Seed for fracturing RNG</param>
         /// <param name="totalChunks">Amount of segments to split this object into</param>
-        /// <param name="insideMaterial">Material for the inside of this object</param>
-        /// <param name="outsideMaterial">Material for the outside of this object</param>
-        /// <param name="breakOffTolerance">Maximum impulse per unit density that a chunk can withstand before being broken off</param>
-        /// <param name="density">The density of this object, in kg/m^3</param>
+        /// <param name="material">Wall material to use for this object</param>
         /// <param name="category">The category that broken off chunks get registered to in the physics manager</param>
-        /// <returns>The chunk graph manager that contains all the resulting chunks</returns>
-        public static ChunkGraphManager FractureGameObject(GameObject gameObject, Anchor anchor, int seed, int totalChunks,Material insideMaterial, Material outsideMaterial, float breakOffTolerance, float density, PhysicsManager.PhysObjectType category)
+        /// <returns>The renderer of the chunks parent that contains all the resulting chunks</returns>
+        public static FracturedRenderer FractureGameObject(GameObject gameObject, int seed, int totalChunks, WallMaterial material, PhysicsManager.PhysObjectType category)
         {
             var mesh = gameObject.GetComponent<MeshFilter>().sharedMesh;
             if(mesh.subMeshCount > 1)
@@ -52,8 +48,8 @@ namespace NHSRemont.Environment.Fractures
             var meshes = FractureMeshesInNvBlast(totalChunks, nvMesh);
 
             // Build chunks gameobjects
-            var chunkMass = (mesh.Volume() * scale.x * scale.y * scale.z) * density / totalChunks; //TODO per-chunk mass
-            var chunks = BuildChunks(insideMaterial, outsideMaterial, meshes, chunkMass);
+            var chunkMass = (mesh.Volume() * scale.x * scale.y * scale.z) * material.density / totalChunks; //TODO per-chunk mass
+            var chunks = BuildChunks(material.insideMaterial, material.outsideMaterial, meshes, chunkMass);
             
             var fractureGameObject = new GameObject(gameObject.name + " Fractured");
             fractureGameObject.transform.position = gameObject.transform.position;
@@ -61,43 +57,22 @@ namespace NHSRemont.Environment.Fractures
             {
                 chunk.transform.SetParent(fractureGameObject.transform, false);
             }
-            
-            // Connect chunks that are touching
-            foreach (var chunk in chunks)
-            {
-                ConnectTouchingChunks(chunk, chunks);
-            }
 
-            // Set up & anchor chunks
+            // Set up chunks
             foreach (ChunkNode chunk in chunks)
             {
-                chunk.SetPhysicsDetails(chunkMass*breakOffTolerance, category);
+                chunk.mass = chunkMass;
+                chunk.breakOffImpulse = material.density * material.internalStrength;
+                chunk.category = category;
             }
-            Bounds bounds = new Bounds();
-            foreach (Vector3 vert in verts)
-            {
-                bounds.Encapsulate(vert);
-            }
-            AnchorChunks(fractureGameObject.transform, bounds, chunks, anchor);
-            
-            //now we can rotate it since we're done with AABBs
+
+            //now we can rotate it since we're done with AABBs (this may be outdated in the current version of code with no BB anchoring idk lol)
             fractureGameObject.transform.rotation = gameObject.transform.rotation;
 
-            // Graph manager freezes/unfreezes blocks depending on whether they are connected to the graph or not
-            var graphManager = fractureGameObject.AddComponent<ChunkGraphManager>();
-            graphManager.Setup(chunks);
+            FracturedRenderer fracturedRenderer = fractureGameObject.AddComponent<FracturedRenderer>();
+            fracturedRenderer.Setup(chunks);
             
-            return graphManager;
-        }
-
-        private static void AnchorChunks(Transform root, Bounds bounds, List<ChunkNode> chunks, Anchor anchor)
-        {
-            var anchoredChunks = GetAnchoredColliders(anchor, root, chunks, bounds);
-            
-            foreach (var chunk in anchoredChunks)
-            {
-                chunk.isAnchor = true;
-            }
+            return fracturedRenderer;
         }
 
         private static List<ChunkNode> BuildChunks(Material insideMaterial, Material outsideMaterial, List<Mesh> meshes, float chunkMass)
@@ -129,80 +104,6 @@ namespace NHSRemont.Environment.Fractures
             }
 
             return meshes;
-        }
-
-        private static IEnumerable<ChunkNode> GetAnchoredColliders(Anchor anchor, Transform meshTransform, List<ChunkNode> chunks, Bounds bounds)
-        {
-            var anchoredChunks = new HashSet<ChunkNode>();
-            var frameWidth = .01f;
-            var meshWorldCenter = meshTransform.TransformPoint(bounds.center);
-            var meshWorldExtents = bounds.extents.Multiply(meshTransform.lossyScale);
-            
-            foreach (ChunkNode chunk in chunks)
-            {
-                if (anchor.HasFlag(Anchor.Left))
-                {
-                    var center = meshWorldCenter - meshTransform.right * meshWorldExtents.x;
-                    var halfExtents = meshWorldExtents.Abs().SetX(frameWidth);
-                    if (DoesBoxOverlapChunk(chunk.collider, new Bounds(center, halfExtents * 2f)))
-                        anchoredChunks.Add(chunk);
-                }
-                
-                if (anchor.HasFlag(Anchor.Right))
-                {
-                    var center = meshWorldCenter + meshTransform.right * meshWorldExtents.x;
-                    var halfExtents = meshWorldExtents.Abs().SetX(frameWidth);
-                    if (DoesBoxOverlapChunk(chunk.collider, new Bounds(center, halfExtents * 2f)))
-                        anchoredChunks.Add(chunk);
-                }
-                
-                if (anchor.HasFlag(Anchor.Bottom))
-                {
-                    var center = meshWorldCenter - meshTransform.up * meshWorldExtents.y;
-                    var halfExtents = meshWorldExtents.Abs().SetY(frameWidth);
-                    if (DoesBoxOverlapChunk(chunk.collider, new Bounds(center, halfExtents * 2f)))
-                        anchoredChunks.Add(chunk);
-                }
-                
-                if (anchor.HasFlag(Anchor.Top))
-                {
-                    var center = meshWorldCenter + meshTransform.up * meshWorldExtents.y;
-                    var halfExtents = meshWorldExtents.Abs().SetY(frameWidth);
-                    if (DoesBoxOverlapChunk(chunk.collider, new Bounds(center, halfExtents * 2f)))
-                        anchoredChunks.Add(chunk);
-                }
-                
-                if (anchor.HasFlag(Anchor.Front))
-                {
-                    var center = meshWorldCenter - meshTransform.forward * meshWorldExtents.z;
-                    var halfExtents = meshWorldExtents.Abs().SetZ(frameWidth);
-                    if (DoesBoxOverlapChunk(chunk.collider, new Bounds(center, halfExtents * 2f)))
-                        anchoredChunks.Add(chunk);
-                }
-
-                if (anchor.HasFlag(Anchor.Back))
-                {
-                    var center = meshWorldCenter + meshTransform.forward * meshWorldExtents.z;
-                    var halfExtents = meshWorldExtents.Abs().SetZ(frameWidth);
-                    if (DoesBoxOverlapChunk(chunk.collider, new Bounds(center, halfExtents * 2f)))
-                        anchoredChunks.Add(chunk);
-                }
-            }
-            
-            return anchoredChunks;
-            
-            bool DoesBoxOverlapChunk(MeshCollider chunk, Bounds box)
-            {
-                var verts = chunk.sharedMesh.vertices;
-                for (var i = 0; i < verts.Length; i++)
-                {
-                    var worldPosition = chunk.transform.TransformPoint(verts[i]);
-                    if (box.Contains(worldPosition))
-                        return true;
-                }
-
-                return false;
-            }
         }
 
         private static Mesh ExtractChunkMesh(NvFractureTool fractureTool, int index)
@@ -275,17 +176,17 @@ namespace NHSRemont.Environment.Fractures
             return node;
         }
         
-        private static void ConnectTouchingChunks(ChunkNode chunk, List<ChunkNode> chunks, float touchRadius = .03f)
+        public static void ConnectTouchingChunks(ChunkNode chunk, List<ChunkNode> chunks, float touchRadius = .03f)
         {
-            var vertices = chunk.collider.sharedMesh.vertices;
-            Vector3 extents = chunk.collider.sharedMesh.bounds.extents;
+            var vertices = chunk.meshCollider.sharedMesh.vertices;
+            Vector3 extents = chunk.meshCollider.sharedMesh.bounds.extents;
             
             foreach (ChunkNode other in chunks)
             {
                 if(other == chunk) continue;
 
                 Vector3 centresOffset = other.transform.position - chunk.transform.position;
-                Vector3 maxOffsetPerAxis = other.collider.sharedMesh.bounds.extents + extents;
+                Vector3 maxOffsetPerAxis = other.meshCollider.sharedMesh.bounds.extents + extents;
                 
                 if(Mathf.Abs(centresOffset.x) > maxOffsetPerAxis.x 
                    || Mathf.Abs(centresOffset.y) > maxOffsetPerAxis.y

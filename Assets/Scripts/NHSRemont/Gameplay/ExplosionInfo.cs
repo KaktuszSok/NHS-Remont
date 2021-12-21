@@ -16,7 +16,7 @@ namespace NHSRemont.Gameplay
         /// <summary>
         /// What percentage of the explosion's energy gets translated into kinetic energy applied to rigidbodies
         /// </summary>
-        private const float energyConversionEfficiency = 0.10f;
+        private const float energyConversionEfficiency = 0.05f;
         /// <summary>
         /// When calculating an explosion from tnt mass, this value determines where the blast radius ends.
         /// </summary>
@@ -125,34 +125,62 @@ namespace NHSRemont.Gameplay
             }
         }
 
-        /// <returns>The impulse this explosion would apply to this body, and the world point at which it would be applied</returns>
-        public (Vector3, Vector3) CalculateImpulseAndPoint(Transform body, Bounds bodyBounds, float mass)
+        /// <returns>The impulse this explosion would apply to this rigidbody, the world point at which it would be applied, and the square distance from the explosion's centre to said point</returns>
+        public (Vector3 impulse, Vector3 point, float sqrDist) CalculateImpulseAndPoint(Rigidbody rb)
         {
-            Vector3 contactPoint = bodyBounds.ClosestPoint(position);
-            float sqDist = (contactPoint - position).sqrMagnitude;
-            if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position);
-            
+            Vector3 contactPoint = rb.ClosestPointOnBounds(position);
             Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
             Vector3 direction = (contactPoint - adjustedPosition).normalized;
+            float sqDist = (contactPoint - position).sqrMagnitude;
+            if(sqDist > blastRadius*blastRadius) return (Vector3.zero, contactPoint, sqDist);
             sqDist = Mathf.Max(sqDist, minDistance*minDistance);
-            
-            float area = PhysicsManager.instance.EstimateCrossSection(body, bodyBounds);
-            return (CalculateImpulse(sqDist, area, mass) * direction, contactPoint);
+
+            float area = PhysicsManager.instance.EstimateCrossSection(rb);
+            float impulse = CalculateImpulse(sqDist, area, rb.mass);
+            return (impulse * direction, contactPoint, sqDist);
         }
+
+
+        // /// <returns>The impulse this explosion would apply to this body, and the world point at which it would be applied</returns>
+        // public (Vector3, Vector3) CalculateImpulseAndPoint(Transform body, Bounds bodyBounds, float mass)
+        // {
+        //     Vector3 contactPoint = bodyBounds.ClosestPoint(position);
+        //     float sqDist = (contactPoint - position).sqrMagnitude;
+        //     if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position);
+        //     
+        //     Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
+        //     Vector3 direction = (contactPoint - adjustedPosition).normalized;
+        //     sqDist = Mathf.Max(sqDist, minDistance*minDistance);
+        //     
+        //     float area = PhysicsManager.instance.EstimateCrossSection(body, bodyBounds);
+        //     return (CalculateImpulse(sqDist, area, mass) * direction, contactPoint);
+        // }
         
-        /// <returns>The impulse this explosion would apply to this body, and the world point at which it would be applied</returns>
-        public (Vector3, Vector3) CalculateImpulseAndPoint(Transform body, Collider bodyCollider, float mass)
+        /// <returns>The impulse this explosion would apply to this body, the world point at which it would be applied, and the square distance from the explosion's centre to said point</returns>
+        public (Vector3 impulse, Vector3 point, float sqrDist) CalculateImpulseAndPoint(Transform body, Collider bodyCollider, float mass)
         {
+            bool disable = false;
+            if (!bodyCollider.enabled)
+            {
+                bodyCollider.enabled = true;
+                //Physics.SyncTransforms();
+                disable = true;
+            }
             Vector3 contactPoint = bodyCollider.ClosestPoint(position);
+            if (disable)
+            {
+                bodyCollider.enabled = false;
+                //Physics.SyncTransforms();
+            }
             float sqDist = (contactPoint - position).sqrMagnitude;
-            if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position);
+            if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position, sqDist);
             
             Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
             Vector3 direction = (contactPoint - adjustedPosition).normalized;
             sqDist = Mathf.Max(sqDist, minDistance*minDistance);
             
-            float area = PhysicsManager.instance.EstimateCrossSection(body, bodyCollider.bounds);
-            return (CalculateImpulse(sqDist, area, mass) * direction, contactPoint);
+            float area = PhysicsManager.instance.EstimateCrossSection(bodyCollider);
+            return (CalculateImpulse(sqDist, area, mass) * direction, contactPoint, sqDist);
         }
         
         /// <returns>Magnitude of the impulse</returns>
@@ -173,7 +201,7 @@ namespace NHSRemont.Gameplay
         public float GetOverpressureAt(float sqrDistance)
         {
             sqrDistance = Mathf.Max(sqrDistance, minDistance*minDistance);
-            return (float) (power / GetTotalVolumeAt(Mathf.Sqrt(Mathf.Pow(sqrDistance, energyFalloffExponent))));
+            return (float) (power*energyConversionEfficiency / GetTotalVolumeAt(Mathf.Sqrt(sqrDistance)) / 1000d);
         }
 
         /// <summary>

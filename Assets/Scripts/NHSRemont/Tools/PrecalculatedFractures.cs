@@ -4,29 +4,33 @@ using UnityEngine;
 namespace NHSRemont.Tools
 {
     /// <summary>
-    /// Precalculates fractures for all children with a FractureThis component
+    /// Precalculates fractures for all children with a Fracturable component
     /// </summary>
+    [RequireComponent(typeof(MasterGraph))]
     public class PrecalculatedFractures : MonoBehaviour
     {
         [ContextMenu("Precalculate Fractures")]
         public void Precalculate()
         {
             RemoveFractures();
-            var targets = GetComponentsInChildren<FractureThis>(true);
-            foreach (FractureThis target in targets)
+            var targets = GetComponentsInChildren<Fracturable>(true);
+            foreach (Fracturable target in targets)
             {
                 if(target.enabled)
                     target.PrepareFracture();
             }
+
+            MasterGraph graph = gameObject.GetOrAddComponent<MasterGraph>();
+            graph.AutoSetup();
         }
 
         [ContextMenu("Remove Fractures")]
         public void RemoveFractures()
         {
-            var fractures = GetComponentsInChildren<ChunkGraphManager>(true);
-            foreach (ChunkGraphManager chunkGraphManager in fractures)
+            var fractures = GetComponentsInChildren<FracturedRenderer>(true);
+            foreach (FracturedRenderer fractured in fractures)
             {
-                DestroyImmediate(chunkGraphManager.gameObject);
+                DestroyImmediate(fractured.gameObject);
             }
         }
 

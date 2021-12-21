@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using NHSRemont.Environment.Fractures;
+using NHSRemont.Utility;
 using Photon.Pun;
 using UnityEngine;
 using UnityEngine.VFX;
@@ -148,6 +150,20 @@ namespace NHSRemont.Gameplay
         /// </summary>
         public void CreateExplosion(ExplosionInfo explosionInfo)
         {
+            Debug.Log(explosionInfo + " overpressure: " +
+                      "\n0m:" + explosionInfo.GetOverpressureAt(0f*0f) +
+                      "\n3m:" + explosionInfo.GetOverpressureAt(3f*3f) +
+                      "\n5m:" + explosionInfo.GetOverpressureAt(5f*5f) +
+                      "\n10m:" + explosionInfo.GetOverpressureAt(10f*10f) +
+                      "\n20m:" + explosionInfo.GetOverpressureAt(20f*20f) +
+                      "\n30m:" + explosionInfo.GetOverpressureAt(30f*30f));
+            Debug.Log(explosionInfo + " intensity: " +
+                      "\n0m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(0f*0f, 1f) +
+                      "\n3m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(3f*3f, 1f) +
+                      "\n5m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(5f*5f, 1f) +
+                      "\n10m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(10f*10f, 1f) +
+                      "\n20m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(20f*20f, 1f) +
+                      "\n30m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(30f*30f, 1f));
             photonView.RPC(nameof(CreateExplosionRpc), RpcTarget.All,
                 explosionInfo.position, explosionInfo.blastRadius, explosionInfo.power_tnt, explosionInfo.energyFalloffExponent, explosionInfo.upwardsModifier);
         }
@@ -201,23 +217,77 @@ namespace NHSRemont.Gameplay
             return area;
         }
         
+        // /// <summary>
+        // /// Estimates a cross-sectional surface area for this body given its bounding box.
+        // /// </summary>
+        // public float EstimateCrossSection(Transform body, Bounds boundingBox)
+        // {
+        //     Vector3 centre = boundingBox.center;
+        //     float maxX = boundingBox.ClosestPoint(centre + body.right * 1000f).x;
+        //     float minX = boundingBox.ClosestPoint(centre - body.right * 1000f).x;
+        //     float maxY = boundingBox.ClosestPoint(centre + body.up * 1000f).y;
+        //     float minY = boundingBox.ClosestPoint(centre - body.up * 1000f).y;
+        //     float maxZ = boundingBox.ClosestPoint(centre + body.forward * 1000f).z;
+        //     float minZ = boundingBox.ClosestPoint(centre - body.forward * 1000f).z;
+        //     
+        //     float longestSide = Mathf.Max(Mathf.Abs(maxX - minX), Mathf.Abs(maxY - minY), Mathf.Abs(maxZ - minZ));
+        //     float area = longestSide; //let's just assume that the area is equal to the longest side. For human: about 1.8m^2, for 20m tall tree: 20m^2, etc.
+        //
+        //     Debug.Log("cross section of " + body + " = " + area, body);
+        //     
+        //     return area;
+        // }
+        
         /// <summary>
-        /// Estimates a cross-sectional surface area for this body given its bounding box.
+        /// Estimates a cross-sectional surface area for this body given its collider.
         /// </summary>
-        public float EstimateCrossSection(Transform body, Bounds boundingBox)
+        public float EstimateCrossSection(Collider collider)
         {
-            Vector3 centre = boundingBox.center;
-            float maxX = boundingBox.ClosestPoint(centre + body.right * 1000f).x;
-            float minX = boundingBox.ClosestPoint(centre - body.right * 1000f).x;
-            float maxY = boundingBox.ClosestPoint(centre + body.up * 1000f).y;
-            float minY = boundingBox.ClosestPoint(centre - body.up * 1000f).y;
-            float maxZ = boundingBox.ClosestPoint(centre + body.forward * 1000f).z;
-            float minZ = boundingBox.ClosestPoint(centre - body.forward * 1000f).z;
-            
-            float longestSide = Mathf.Max(Mathf.Abs(maxX - minX), Mathf.Abs(maxY - minY), Mathf.Abs(maxZ - minZ));
-            float area = longestSide; //let's just assume that the area is equal to the longest side. For human: about 1.8m^2, for 20m tall tree: 20m^2, etc.
+            return collider switch
+            {
+                BoxCollider col => EstimateByLongestSide(col.size), //estimate area as longest side
+                SphereCollider col => MaxScale()*2*Mathf.PI*col.radius*col.radius, //cross-sectional area always 2pi*r^2 no matter the angle
+                CapsuleCollider col => Mathf.Max(col.height*col.transform.lossyScale.y, MaxScaleXZ()*col.radius*2), //estimate area as the height (guaranteed to be the longest side)
+                WheelCollider col => 2*col.radius*col.transform.lossyScale.y, //estimate area as height (to account for less area when at an angle)
+                MeshCollider col => EstimateFromLocalBounds(col.sharedMesh.bounds),
+                _ => FallbackEstimate()
+            };
 
-            return area;
+            float MaxScale()
+            {
+                
+                Vector3 lossyScale = collider.transform.lossyScale;
+                return Mathf.Max(lossyScale.x, lossyScale.y, lossyScale.z);
+            }
+
+            float MaxScaleXZ()
+            {
+                Vector3 lossyScale = collider.transform.lossyScale;
+                return Mathf.Max(lossyScale.x, lossyScale.z);
+            }
+
+            float EstimateFromLocalBounds(Bounds localBounds)
+            {
+                Transform colliderTransform = collider.transform;
+                Vector3 size = localBounds.size;
+                return Mathf.Max(size.x * colliderTransform.lossyScale.x, size.y * colliderTransform.lossyScale.y,
+                    size.z * colliderTransform.lossyScale.z);
+            }
+
+            float EstimateByLongestSide(Vector3 localSize)
+            {
+                Vector3 lossyScale = collider.transform.lossyScale;
+                localSize.Scale(lossyScale);
+                return Mathf.Max(localSize.x, localSize.y, localSize.z);
+            }
+
+            float FallbackEstimate()
+            {
+                Vector3 size = collider.bounds.size;
+                if (size == Vector3.zero)
+                    size = collider.transform.lossyScale;
+                return Mathf.Max(size.x, size.y, size.z);
+            }
         }
 
         /// <summary>
@@ -225,7 +295,31 @@ namespace NHSRemont.Gameplay
         /// </summary>
         public float EstimateCrossSection(Vector3 size)
         {
-            return Mathf.Max(size.x, size.y, size.z); //same assumption as in the function above
+            return Mathf.Max(size.x, size.y, size.z); //same assumption as in the first estimate function
+        }
+
+        /// <summary>
+        /// Gets the world-space bounds of a collider, even if it is disabled
+        /// </summary>
+        public Bounds GetColliderBounds(Collider collider)
+        {
+            Bounds bounds = collider.bounds;
+            if (bounds.extents == Vector3.zero)
+            {
+                Bounds localBounds = collider switch
+                {
+                    BoxCollider col => new Bounds(col.center, col.size),
+                    SphereCollider col => new Bounds(col.center, Vector3.one*col.radius*2),
+                    CapsuleCollider col => new Bounds(col.center, new Vector3(col.radius*2, Mathf.Max(col.height, col.radius*2), col.radius*2)),
+                    WheelCollider col => new Bounds(col.center, new Vector3(col.radius*0.2f, col.radius*2, col.radius*2)),
+                    MeshCollider col => col.sharedMesh.bounds,
+                    _ => new Bounds(Vector3.zero, Vector3.one)
+                };
+
+                bounds = collider.transform.TransformBounds(localBounds);
+            }
+
+            return bounds;
         }
     }
 }
