@@ -149,7 +149,8 @@ namespace NHSRemont.Environment.Fractures
                     _ => (Vector3.one/2f, Vector3.zero)
                 };
                 Vector3 indestructibleExtents = extents; //skeleton-local extents of the box that will make chunks indestructible if their centre resides within it
-                indestructibleExtents += Vector3.one * indestructibleChunksMaxSkeletonDistance;
+                Vector3 lossyScale = skeletonTransform.lossyScale;
+                indestructibleExtents += new Vector3(1f/lossyScale.x, 1f/lossyScale.y, 1f/lossyScale.z) * indestructibleChunksMaxSkeletonDistance;
                 extents.Scale(skeletonTransform.lossyScale);
                 extents += Vector3.one * adjecentChunksProximity;
                 var others = Physics.OverlapBox(skeletonTransform.TransformPoint(centre), extents, skeletonTransform.rotation);

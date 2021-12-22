@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f342be56f4a49b69a8257f4c2ffdab0, type: 3}
+  m_Name: Concrete
+  m_EditorClassIdentifier: 
+  density: 2400
+  internalStrength: 7.8
+  outsideMaterial: {fileID: 2100000, guid: d92ef32394b5f474385d74b565a7bdd7, type: 2}
+  insideMaterial: {fileID: 2100000, guid: 6cfe423139c361a459da7ed9831d4b1c, type: 2}
+  breakOffSound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}
+  hardImpulseSound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}
+  destroySound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}

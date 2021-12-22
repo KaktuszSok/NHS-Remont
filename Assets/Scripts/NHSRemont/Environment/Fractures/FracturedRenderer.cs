@@ -111,7 +111,6 @@ namespace NHSRemont.Environment.Fractures
             node.GetComponent<MeshRenderer>().enabled = true;
             if (!graphChanged)
             {
-                Debug.Log("sound at " + node.transform.position);
                 node.GetComponent<NHSWall>().material.breakOffSound.PlayRandomSoundAtPosition(node.transform.position);
             }
 

@@ -50,12 +50,20 @@ namespace NHSRemont.Environment.Fractures
                 //combine child graphs
                 Combine();
             }
-            
+
             mass = 0f;
             for (int i = 0; i < allChunks.Length; i++)
             {
                 mass += allChunks[i].mass;
-                allChunks[i].breakOffCallbackEarly += OnChunkBreakOff;
+                if (independent)
+                {
+                    allChunks[i].breakOffCallbackEarly += OnChunkBreakOff;
+                }
+            }
+            
+            if (chunksParent == null)
+            {
+                return;
             }
             
             chunksParent.gameObject.SetActive(false);
@@ -63,10 +71,8 @@ namespace NHSRemont.Environment.Fractures
 
         private void Start()
         {
-            if (independent)
-            {
+            if(independent || collider)
                 PhysicsManager.instance.onExplosion += OnExplosion;
-            }
         }
 
         private void Combine()
@@ -204,6 +210,10 @@ namespace NHSRemont.Environment.Fractures
         public void OnDestroy()
         {
             PhysicsManager.instance.onExplosion -= OnExplosion;
+            foreach (ChunkNode chunkNode in allChunks)
+            {
+                chunkNode.breakOffCallbackEarly -= OnChunkBreakOff;
+            }
         }
 
         private void OnCollisionEnter(Collision collision)
@@ -224,10 +234,10 @@ namespace NHSRemont.Environment.Fractures
 
         private void OnExplosion(ExplosionInfo explosionInfo)
         {
-            if(!independent || !PhotonNetwork.IsMasterClient)
+            if(!PhotonNetwork.IsMasterClient)
                 return;
 
-            if (!fractured)
+            if (!fractured && collider)
             {
                 float chunkMass = mass / chunks;
                 float impulseToFracture = material.density * material.internalStrength;
@@ -240,10 +250,14 @@ namespace NHSRemont.Environment.Fractures
                 else
                     return;
             }
-            foreach (ChunkNode chunkNode in allChunks)
+
+            if (independent)
             {
-                if(chunkNode != null)
-                    chunkNode.OnExplosion(explosionInfo);
+                foreach (ChunkNode chunkNode in allChunks)
+                {
+                    if (chunkNode != null)
+                        chunkNode.OnExplosion(explosionInfo);
+                }
             }
         }
         
@@ -276,6 +290,13 @@ namespace NHSRemont.Environment.Fractures
             fractured = true;
             foreach (Collider component in GetComponents<Collider>())
                 component.enabled = false;
+            
+            if (!independent)
+            {
+                combinedFracturable.Fracture();
+                return;
+            }
+            
             foreach (ChunkNode chunkNode in allChunks)
             {
                 chunkNode.breakOffCallbackEarly -= OnChunkBreakOff;
@@ -301,11 +322,6 @@ namespace NHSRemont.Environment.Fractures
                 };
             }
             
-            if (!independent)
-            {
-                combinedFracturable.Fracture();
-                return;
-            }
             for (int i = 0; i < mergedChildren.Count; i++)
             {
                 mergedChildren[i].Fracture(); //disable collision for all children
