@@ -1,4 +1,4 @@
-﻿using System;
+﻿using NHSRemont.Environment.Fractures;
 using NHSRemont.Gameplay;
 using NHSRemont.Utility;
 using UnityEngine;
@@ -34,31 +34,35 @@ namespace NHSRemont.Environment
             
             if(listenForExplosions)
                 this.RegisterWithPhysicsManager();
-            rb = GetComponent<Rigidbody>();
-            
+            rb = this.GetOrAddComponent<Rigidbody>();
         }
         
         public void OnCollisionEnter(Collision collision)
         {
-            ApplyImpulseAtPoint(collision.impulse, collision.GetContact(0).point);
+            OnImpulseAtPoint(collision.impulse, collision.GetContact(0).point);
         }
 
         public void OnExplosion(ExplosionInfo explosionInfo)
         {
             if(!explosionInfo.IsPointWithinBlastRadius(transform.position))
                 return;
-            
+
             (Vector3 impulse, Vector3 point, _) = explosionInfo.CalculateImpulseAndPoint(rb);
-            ApplyImpulseAtPoint(impulse, point);
+            OnImpulseAtPoint(impulse, point);
         }
 
-        public void ApplyImpulseAtPoint(Vector3 impulse, Vector3 point)
+        public void OnImpulseAtPoint(Vector3 impulse, Vector3 point)
         {
             float sqrMag = impulse.sqrMagnitude;
             if (sqrMag >= thresholdMin * thresholdMin && sqrMag < thresholdMax * thresholdMax)
             {
                 PlaySound(impulse, point);
             }
+        }
+
+        public void OnBulletDamage(RaycastHit hit, float damage)
+        {
+            
         }
 
         public void PlaySound(Vector3 impulse, Vector3 point)

@@ -12,5 +12,7 @@ namespace NHSRemont.Environment
             NHSWall copy = target.GetOrAddComponent<NHSWall>();
             copy.material = material;
         }
+        
+        
     }
 }

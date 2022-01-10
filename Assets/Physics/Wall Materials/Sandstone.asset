@@ -14,8 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   density: 2200
   internalStrength: 5
+  penetrationMultiplier: 0.05
   outsideMaterial: {fileID: 2100000, guid: f224a0bbfd90a4843a4a66c36ca5ef22, type: 2}
   insideMaterial: {fileID: 2100000, guid: 3bfe6d500c6b9ff4ca7eaa107b2d41d3, type: 2}
   breakOffSound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}
   hardImpulseSound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}
   destroySound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}
+  destroyVFX: {fileID: 5602567828551951313, guid: 0799f443e9987ae4dbfd1875169b029d, type: 3}
+  damageVFX: {fileID: 5602567828551951313, guid: 81cd67694043594489361e47b5c1ef4f, type: 3}
+  VFXColour: {r: 0.8962264, g: 0.801445, b: 0.51152545, a: 1}
+  VFXColourField: Colour

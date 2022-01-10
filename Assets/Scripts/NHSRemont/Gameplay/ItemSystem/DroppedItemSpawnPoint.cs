@@ -13,9 +13,9 @@ namespace NHSRemont.Gameplay.ItemSystem
             public Item type;
             public int amount;
 
-            public Item SpawnInWorld(Vector3 where)
+            public Item SpawnInWorld(Vector3 where, Quaternion rotation)
             {
-                Item item = Item.CreateInstance(type, where, true, true);
+                Item item = Item.CreateInstance(type, where, rotation, true, true);
                 item.amount = amount;
                 return item;
             }
@@ -43,7 +43,7 @@ namespace NHSRemont.Gameplay.ItemSystem
         public void Spawn()
         {
             Spawnable chosen = spawnables.ChooseRandom();
-            Item spawned = chosen.SpawnInWorld(transform.position);
+            Item spawned = chosen.SpawnInWorld(transform.position, transform.rotation);
             spawned.despawnTime = PhotonNetwork.Time + timeBetweenSpawns;            
             spawnTimer = timeBetweenSpawns;
         }

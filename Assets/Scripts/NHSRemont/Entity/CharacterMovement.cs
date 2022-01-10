@@ -38,9 +38,6 @@ namespace NHSRemont.Entity
 		
 		private void Awake()
 		{
-			Cursor.lockState = CursorLockMode.Locked;
-			Cursor.visible = false;
-
 			//get all layers characters collide with
 			characterCollisionMask = LayerUtils.GetPhysicsCollisionMask(LayerMask.NameToLayer("Character"));
 		}

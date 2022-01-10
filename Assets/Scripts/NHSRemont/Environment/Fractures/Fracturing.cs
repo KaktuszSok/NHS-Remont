@@ -171,7 +171,7 @@ namespace NHSRemont.Environment.Fractures
             //chunk node
             var node = chunk.AddComponent<ChunkNode>();
             node.mass = mass;
-            node.SetCollider(mc);
+            node.SetColliderAndSaveMesh(mc);
             
             return node;
         }

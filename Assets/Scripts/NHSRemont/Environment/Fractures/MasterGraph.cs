@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using NHSRemont.Gameplay;
 using Photon.Pun;
 using UnityEngine;
 
@@ -20,9 +19,26 @@ namespace NHSRemont.Environment.Fractures
         [Tooltip("Anchor chunks who's centre of mass is this close to the skeleton (or less) will be indestructible")]
         [SerializeField] private float indestructibleChunksMaxSkeletonDistance = 0.5f;
         
+        /// <summary>
+        /// The nodes that are currently part of the graph
+        /// </summary>
         [SerializeField]
         private List<GraphNode> nodes = new();
+        /// <summary>
+        /// The nodes that are currently part of the graph
+        /// </summary>
+        public IReadOnlyList<GraphNode> connectedNodes => nodes;
+        /// <summary>
+        /// All the nodes that were part of the graph at startup
+        /// </summary>
+        public GraphNode[] allNodes { get; private set; }
         private bool graphChanged;
+        public bool doneSetup { get; private set; } = false;
+
+        private void Awake()
+        {
+            allNodes = nodes.ToArray();
+        }
 
         private void Start()
         {
@@ -134,7 +150,6 @@ namespace NHSRemont.Environment.Fractures
             }
 
             yield return null;
-            //Physics.SyncTransforms();
 
             IEnumerable<Collider> skeletonColliders = skeletonParent.GetComponentsInChildren<Collider>();
             //anchor chunks touching skeleton
@@ -154,10 +169,8 @@ namespace NHSRemont.Environment.Fractures
                 extents.Scale(skeletonTransform.lossyScale);
                 extents += Vector3.one * adjecentChunksProximity;
                 var others = Physics.OverlapBox(skeletonTransform.TransformPoint(centre), extents, skeletonTransform.rotation);
-                //Debug.Log("found " + others.Length + " overlaps in box " + skeletonTransform.position + "/" + extents + "/" + skeletonTransform.eulerAngles, skeletonTransform);
                 foreach (Collider other in others)
                 {
-                    //Debug.Log("overlap:" + other.name + "(child of " + name + ": " + other.transform.IsChildOf(transform) + ")", other);
                     if(!other.transform.IsChildOf(transform))
                         continue;
 
@@ -173,8 +186,6 @@ namespace NHSRemont.Environment.Fractures
                     {
                         chunk.indestructible = true;
                     }
-                    
-                    //Debug.Log("anchored chunk " + chunk, chunk);
                 }
             }
             
@@ -185,6 +196,8 @@ namespace NHSRemont.Environment.Fractures
             }
             
             yield return null;
+
+            doneSetup = true;
         }
 
         public void ClearNodes()
@@ -271,8 +284,6 @@ namespace NHSRemont.Environment.Fractures
             nodes.Remove(node);
             node.GetComponent<MeshRenderer>().enabled = true;
             
-            // if(!graphChanged)
-            //     Debug.Log("łoła", this);
             graphChanged = true;
         }
     }

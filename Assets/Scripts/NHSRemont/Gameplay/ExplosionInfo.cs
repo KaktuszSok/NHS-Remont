@@ -16,7 +16,7 @@ namespace NHSRemont.Gameplay
         /// <summary>
         /// What percentage of the explosion's energy gets translated into kinetic energy applied to rigidbodies
         /// </summary>
-        private const float energyConversionEfficiency = 0.05f;
+        private const float energyConversionEfficiency = 0.06f;
         /// <summary>
         /// When calculating an explosion from tnt mass, this value determines where the blast radius ends.
         /// </summary>
@@ -109,7 +109,7 @@ namespace NHSRemont.Gameplay
             Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
             Vector3 direction = (contactPoint - adjustedPosition).normalized;
             float sqDist = (contactPoint - position).sqrMagnitude;
-            if(sqDist > blastRadius*blastRadius) return;
+            if(sqDist >= blastRadius*blastRadius) return;
             sqDist = Mathf.Max(sqDist, minDistance*minDistance);
 
             float area = PhysicsManager.instance.EstimateCrossSection(rb);
@@ -146,7 +146,7 @@ namespace NHSRemont.Gameplay
         // {
         //     Vector3 contactPoint = bodyBounds.ClosestPoint(position);
         //     float sqDist = (contactPoint - position).sqrMagnitude;
-        //     if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position);
+        //     if(sqDist >= blastRadius*blastRadius) return (Vector3.zero, body.position);
         //     
         //     Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
         //     Vector3 direction = (contactPoint - adjustedPosition).normalized;
@@ -173,7 +173,11 @@ namespace NHSRemont.Gameplay
                 //Physics.SyncTransforms();
             }
             float sqDist = (contactPoint - position).sqrMagnitude;
-            if(sqDist > blastRadius*blastRadius) return (Vector3.zero, body.position, sqDist);
+            if (sqDist == 0) //unity/physx being weird
+            {
+                sqDist = (bodyCollider.bounds.center - position).sqrMagnitude;
+            }
+            if(sqDist >= blastRadius*blastRadius) return (Vector3.zero, body.position, sqDist);
             
             Vector3 adjustedPosition = new Vector3(position.x, position.y - upwardsModifier, position.z); //position adjusting for the upwards modifier
             Vector3 direction = (contactPoint - adjustedPosition).normalized;
@@ -227,7 +231,7 @@ namespace NHSRemont.Gameplay
         {
             Vector3 contactPoint = bounds.ClosestPoint(position);
             float sqDist = (contactPoint - position).sqrMagnitude;
-            return (sqDist <= blastRadius*blastRadius, contactPoint);
+            return (sqDist < blastRadius*blastRadius, contactPoint);
         }
 
         /// <summary>

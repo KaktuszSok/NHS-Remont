@@ -12,6 +12,7 @@ using Debug = UnityEngine.Debug;
 
 namespace NHSRemont.Gameplay
 {
+    //TODO split this into smaller classes with this one as the "hub" to access them through
     public class GameManager : MonoBehaviourPunCallbacks
     {
         /// <summary>
@@ -22,6 +23,8 @@ namespace NHSRemont.Gameplay
         private readonly Stopwatch terrainEventsProcessingStopwatch = new Stopwatch();
 
         public static GameManager instance;
+
+        public GameplayReferences gameplayReferences;
 
         //private static MapPersistence testPersistence = new MapPersistence();
         public MapPersistence persistence = new MapPersistence();
@@ -145,6 +148,8 @@ namespace NHSRemont.Gameplay
         public static void ReturnToMenu()
         {
             SceneManager.LoadScene("Menu");
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         #region Callbacks

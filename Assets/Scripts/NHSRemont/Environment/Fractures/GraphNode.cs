@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using NHSRemont.Gameplay;
+using NHSRemont.Networking;
 using NHSRemont.Utility;
 using Photon.Pun;
 using UnityEngine;
@@ -14,7 +15,7 @@ namespace NHSRemont.Environment.Fractures
     public abstract class GraphNode : MonoBehaviour, IDamageListener
     {
         private const float unfreezeImpulseDampening = 0.0f;
-        public const float destroyImpulseFactor = 3f; //impulse required to destroy = breakOffImpulse*this
+        public const float destroyImpulseFactor = 4f; //impulse required to destroy while frozen = breakOffImpulse*this
         
         //settings
         public new Collider collider { get; protected set; }
@@ -25,7 +26,7 @@ namespace NHSRemont.Environment.Fractures
         /// Impulse required to break off this node.
         /// For explosions, the surface area is ignored (assumed as 1m^2)
         /// </summary>
-        [ReadOnly]
+        [ReadOnlyInEditor]
         public float breakOffImpulse = 3f;
         public bool indestructible = false;
 
@@ -33,7 +34,8 @@ namespace NHSRemont.Environment.Fractures
         public readonly ISet<GraphNode> neighbours = new HashSet<GraphNode>();
         public bool frozen = true;
         public bool destroyed { get; private set; } = false;
-
+        private float accumulatedImpulse = 0f;
+        
         /// <summary>
         /// Called when this chunk is broken off or destroyed, right before breakOffCallbackLate
         /// </summary>
@@ -43,14 +45,10 @@ namespace NHSRemont.Environment.Fractures
         /// </summary>
         public Action<GraphNode> breakOffCallbackLate;
         /// <summary>
-        /// Called when the node is violently destroyed (i.e. not by unloading scene etc)
+        /// Called when the node is violently destroyed (i.e. not by unloading scene etc).
+        /// The vector represents the velocity this chunk has at the moment of destruction (this includes the effect of the impulse that causes the destruction)
         /// </summary>
-        public Action<GraphNode> destroyedCallback;
-        /// <summary>
-        /// Lets us re-use an explosion's effects on this object without having to calculate it again.
-        /// Not called if the node was frozen at the time of the explosion.
-        /// </summary>
-        public Action<GraphNode, Vector3, Vector3, float> explosionImpulseAndPointAndSqrDistForwarding;
+        public Action<GraphNode, Vector3> destroyedCallback;
 
         protected virtual void Awake()
         {
@@ -80,13 +78,39 @@ namespace NHSRemont.Environment.Fractures
             savedNeighbours = neighbours.ToArray();
         }
 
+        protected virtual void FixedUpdate()
+        {
+            //accumulate damage only if not frozen (otherwise, only accumulate over the period of one physics tick)
+            if(frozen)
+                accumulatedImpulse = 0f;
+        }
+        
         public void DestroySelf()
+        {
+            DestroySelf(GetVelocity());
+        }
+
+        /// <param name="expectedVelocity">The velocity this chunks expects to have at the moment of its destruction</param>
+        public void DestroySelf(Vector3 expectedVelocity)
         {
             if(destroyed)
                 return;
             
             destroyed = true;
-            destroyedCallback?.Invoke(this);
+            destroyedCallback?.Invoke(this, expectedVelocity);
+            DetachFromNeighbours();
+            Destroy(gameObject);
+        }
+
+        /// <summary>
+        /// Destroys this node non-violently (does not fire destroyed callback)
+        /// </summary>
+        public void RemoveSelf()
+        {
+            if(destroyed)
+                return;
+
+            destroyed = true;
             DetachFromNeighbours();
             Destroy(gameObject);
         }
@@ -108,7 +132,7 @@ namespace NHSRemont.Environment.Fractures
         {
             if(indestructible || !PhotonNetwork.IsMasterClient) return;
             
-            ApplyImpulseAtPoint(collision.impulse, collision.GetContact(0).point);
+            OnImpulseAtPoint(collision.impulse, collision.GetContact(0).point);
         }
 
         public virtual void OnExplosion(ExplosionInfo explosionInfo)
@@ -129,31 +153,38 @@ namespace NHSRemont.Environment.Fractures
                     return;
                 }
             }
-            else
-            {
-                explosionImpulseAndPointAndSqrDistForwarding?.Invoke(this, impulse, point, sqrDist);
-            }
             
-            ApplyImpulseAtPoint(impulse, point);
+            OnImpulseAtPoint(impulse, point);
         }
 
-        public virtual void ApplyImpulseAtPoint(Vector3 impulse, Vector3 point)
+        public virtual void OnImpulseAtPoint(Vector3 impulse, Vector3 point)
         {
             if(indestructible || !PhotonNetwork.IsMasterClient) return;
             
             float impulseToDestroy = breakOffImpulse * destroyImpulseFactor;
-            if (impulse.sqrMagnitude >= impulseToDestroy * impulseToDestroy)
+            float impulseMag = impulse.magnitude;
+            if(impulseMag < breakOffImpulse*0.15f)
+                return; //impulse too weak to be significant - ignore it (and by extension don't accumulate)
+            
+            accumulatedImpulse += impulseMag;
+            if (accumulatedImpulse >= impulseToDestroy)
             {
-                DestroySelf();
+                Vector3 newVel = GetVelocity() + (impulse / mass);
+                DestroySelf(newVel);
                 return;
             }
 
-            if (impulse.sqrMagnitude > breakOffImpulse * breakOffImpulse)
+            if (frozen && accumulatedImpulse > breakOffImpulse)
             {
                 Unfreeze().AddForceAtPosition(impulse*(1-unfreezeImpulseDampening), point, ForceMode.Impulse);
             }
         }
-        
+
+        public void OnBulletDamage(RaycastHit hit, float damage)
+        {
+            //TODO
+        }
+
         public virtual Rigidbody Unfreeze()
         {
             if(!frozen)
@@ -164,6 +195,29 @@ namespace NHSRemont.Environment.Fractures
             DetachFromNeighbours();
             
             return null;
-        }    
+        }
+        
+        public virtual Vector3 GetVelocity()
+        {
+            return Vector3.zero;
+        }
+
+        public virtual void WritePhysicsState(ref NetworkedPhysicsState state)
+        {
+            state.position = transform.position;
+            state.rotation = transform.eulerAngles;
+            state.velocity = GetVelocity();
+            state.angularVelocity = Vector3.zero;
+        }
+
+        public virtual void ApplyPhysicsState(NetworkedPhysicsState state, float lag = 0f)
+        {
+            if (frozen)
+                Unfreeze();
+
+            (Vector3 predictedPosition, Vector3 predictedRotation) = state.GetPredictedTransformState(lag);
+            transform.position = predictedPosition;
+            transform.eulerAngles = predictedRotation;
+        }
     }
 }

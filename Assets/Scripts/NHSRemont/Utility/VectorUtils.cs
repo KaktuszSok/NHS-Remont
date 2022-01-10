@@ -35,5 +35,18 @@ namespace NHSRemont.Utility
         {
             return new Vector3(a.x / b.x, a.y / b.y, a.z / b.z);
         }
+
+        /// <summary>
+        /// Returns a direction vector which is the input direction rotated by at most the given max angle.
+        /// </summary>
+        public static Vector3 RandomiseDirection(Vector3 dir, float maxAngleDeviation)
+        {
+            Quaternion fwdToDir = Quaternion.LookRotation(dir);
+            Quaternion randomisation = Quaternion.Euler(
+                Random.Range(-maxAngleDeviation, maxAngleDeviation),
+                Random.Range(-maxAngleDeviation, maxAngleDeviation),
+                0f);
+            return (fwdToDir * (randomisation*Vector3.forward)).normalized;
+        }
     }
 }

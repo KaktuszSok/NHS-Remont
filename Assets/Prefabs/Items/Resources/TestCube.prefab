@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 9167295096540188736}
   - component: {fileID: 8019914122767640306}
   - component: {fileID: -8705683716704423394}
-  - component: {fileID: 1435895897926688694}
+  - component: {fileID: -4700121189861372433}
   m_Layer: 0
   m_Name: TestCube
   m_TagString: Untagged
@@ -126,6 +126,8 @@ MonoBehaviour:
   typeName: 
   maxStackAmount: 3
   mass: 1
+  punchSFX: {fileID: 0}
+  _amount: 1
   despawnTime: 0
 --- !u!114 &-8705683716704423394
 MonoBehaviour:
@@ -142,9 +144,9 @@ MonoBehaviour:
   m_SynchronizePosition: 1
   m_SynchronizeRotation: 1
   m_SynchronizeScale: 0
-  m_UseLocal: 0
---- !u!135 &1435895897926688694
-SphereCollider:
+  m_UseLocal: 1
+--- !u!65 &-4700121189861372433
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -154,5 +156,5 @@ SphereCollider:
   m_IsTrigger: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.5
+  m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}

@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using ExitGames.Client.Photon;
-using Object = UnityEngine.Object;
+using UnityEngine;
 
 namespace NHSRemont.Environment.Terrain
 {

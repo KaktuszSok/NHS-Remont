@@ -18,7 +18,8 @@ namespace NHSRemont.UI
 
         private static RuntimePreviewGenerator previewGenerator = new RuntimePreviewGenerator
         {
-            BackgroundColor = Color.clear
+            BackgroundColor = Color.clear,
+            PreviewDirection = Vector3.right
         };
         private static Dictionary<string, Sprite> itemIcons = new();
 

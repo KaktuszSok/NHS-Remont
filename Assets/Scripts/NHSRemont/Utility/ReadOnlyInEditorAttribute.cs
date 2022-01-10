@@ -3,14 +3,14 @@ using UnityEngine;
 
 namespace NHSRemont.Utility
 {
-    public class ReadOnlyAttribute : PropertyAttribute
+    public class ReadOnlyInEditorAttribute : PropertyAttribute
     {
  
     }
  
     #if UNITY_EDITOR
-    [CustomPropertyDrawer(typeof(ReadOnlyAttribute))]
-    public class ReadOnlyDrawer : PropertyDrawer
+    [CustomPropertyDrawer(typeof(ReadOnlyInEditorAttribute))]
+    public class ReadOnlyInEditorDrawer : PropertyDrawer
     {
         public override float GetPropertyHeight(SerializedProperty property,
             GUIContent label)

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 namespace NHSRemont.Utility
 {
@@ -7,6 +8,11 @@ namespace NHSRemont.Utility
         public static T ChooseRandom<T>(this T[] arr)
         {
             return arr[Random.Range(0, arr.Length)];
+        }
+
+        public static string ToString<T>(this ICollection<T> arr)
+        {
+            return $"[#={arr.Count} | {string.Join(", ", arr)}]";
         }
     }
 }

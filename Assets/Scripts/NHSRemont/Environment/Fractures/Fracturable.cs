@@ -11,7 +11,7 @@ namespace NHSRemont.Environment.Fractures
     /// A part of a structure which can be fractured into chunks
     /// </summary>
     [RequireComponent(typeof(NHSWall))]
-    public class Fracturable : MonoBehaviour
+    public class Fracturable : MonoBehaviour, IDamageListener
     {
         [SerializeField] private int chunks = 15;
         private NHSWall wallComponent;
@@ -216,23 +216,15 @@ namespace NHSRemont.Environment.Fractures
             }
         }
 
-        private void OnCollisionEnter(Collision collision)
+        public void OnCollisionEnter(Collision collision)
         {
             if(!PhotonNetwork.IsMasterClient || fractured)
                 return;
             
-            float chunkMass = mass / chunks;
-            float impulseToFracture = chunkMass * material.internalStrength;
-
-            if (collision.impulse.sqrMagnitude >= impulseToFracture*impulseToFracture)
-            {
-                Vector3 point = collision.GetContact(0).point;
-                Fracture();
-                combinedFracturable.GetClosestChunkTo(point).OnCollisionEnter(collision);
-            }
+            OnImpulseAtPoint(collision.impulse, collision.GetContact(0).point);
         }
 
-        private void OnExplosion(ExplosionInfo explosionInfo)
+        public void OnExplosion(ExplosionInfo explosionInfo)
         {
             if(!PhotonNetwork.IsMasterClient)
                 return;
@@ -253,14 +245,36 @@ namespace NHSRemont.Environment.Fractures
 
             if (independent)
             {
+                //forward explosion to chunks
                 foreach (ChunkNode chunkNode in allChunks)
                 {
                     if (chunkNode != null)
+                    {
                         chunkNode.OnExplosion(explosionInfo);
+                    }
                 }
             }
         }
-        
+
+        public void OnImpulseAtPoint(Vector3 impulse, Vector3 point)
+        {
+            if(combinedFracturable == null) //awake not called yet
+                return;
+            
+            float impulseToFracture = material.density * material.internalStrength;
+            
+            if (impulse.sqrMagnitude >= impulseToFracture*impulseToFracture)
+            {
+                Fracture();
+                combinedFracturable.GetClosestChunkTo(point).gameObject.ApplyImpulseAtPoint(impulse, point);
+            }
+        }
+
+        public void OnBulletDamage(RaycastHit hit, float damage)
+        {
+            //TODO
+        }
+
         private void OnChunkBreakOff(GraphNode obj)
         {
             if(!fractured)
@@ -300,26 +314,6 @@ namespace NHSRemont.Environment.Fractures
             foreach (ChunkNode chunkNode in allChunks)
             {
                 chunkNode.breakOffCallbackEarly -= OnChunkBreakOff;
-                chunkNode.breakOffCallbackLate += node =>
-                {
-                    if(node.destroyed) return;
-                    
-                    PlaySoundOnImpulse soundOnImpulse = node.gameObject.AddComponent<PlaySoundOnImpulse>();
-                    soundOnImpulse.SetUp(
-                        material.hardImpulseSound, 
-                        chunkNode.breakOffImpulse*0.3f,
-                        chunkNode.breakOffImpulse*1.4f,
-                        chunkNode.breakOffImpulse*GraphNode.destroyImpulseFactor,
-                        false);
-                    node.explosionImpulseAndPointAndSqrDistForwarding += (_, impulse, point, _) =>
-                    {
-                        soundOnImpulse.ApplyImpulseAtPoint(impulse, point);
-                    };
-                };
-                chunkNode.destroyedCallback += node =>
-                {
-                    material.destroySound.PlayRandomSoundAtPosition(node.transform.position);
-                };
             }
             
             for (int i = 0; i < mergedChildren.Count; i++)
@@ -328,7 +322,7 @@ namespace NHSRemont.Environment.Fractures
             }
             
             GetComponent<Renderer>().enabled = false;
-            
+
             chunksParent.gameObject.SetActive(true);
             chunksParent.InitialiseRuntimeFromPrecalculated();
         }

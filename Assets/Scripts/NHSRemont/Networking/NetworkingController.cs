@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using C5;
 using ExitGames.Client.Photon;
 using NHSRemont.Gameplay;
 using Photon.Pun;
@@ -12,7 +14,7 @@ namespace NHSRemont.Networking
     {
         public static NetworkingController instance;
         public static NHSRoomSettings settings = new NHSRoomSettings(3);
-
+        
         private void Awake()
         {
             if (instance != null)
@@ -21,6 +23,7 @@ namespace NHSRemont.Networking
                 return;
             }
             instance = this;
+
             PhotonNetwork.AutomaticallySyncScene = true;
             PhotonNetwork.AddCallbackTarget(this);
             PhotonPeer.RegisterType(typeof(MapPersistence), MapPersistence.typeId, MapPersistence.Serialise, MapPersistence.Deserialise);
@@ -58,6 +61,7 @@ namespace NHSRemont.Networking
             }
         }
 
+        #region Actions
         public void ShutdownServerOrClient()
         {
             PhotonNetwork.Disconnect();
@@ -71,6 +75,8 @@ namespace NHSRemont.Networking
                 PhotonNetwork.JoinOrCreateRoom("testroom", new RoomOptions(), TypedLobby.Default);
             }
         }
+
+        #endregion
 
         #region Callbacks
         public void OnCreatedRoom()

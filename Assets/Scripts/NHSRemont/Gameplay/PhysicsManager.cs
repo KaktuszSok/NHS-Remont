@@ -30,9 +30,26 @@ namespace NHSRemont.Gameplay
         private readonly Dictionary<Rigidbody, float> rigidbodyCrossAreasCache = new();
 
         public Action<ExplosionInfo> onExplosion;
+        private static PhysicMaterial _droppedItemMaterial;
 
-        [SerializeField]
-        private GameObject explosionVFX;
+        public static PhysicMaterial droppedItemMaterial
+        {
+            get
+            {
+                if (_droppedItemMaterial == null)
+                {
+                    _droppedItemMaterial = new PhysicMaterial
+                    {
+                        name = "Dropped Item",
+                        dynamicFriction = 0.75f,
+                        staticFriction = 0.75f,
+                        bounciness = 0.3f
+                    };
+                }
+
+                return _droppedItemMaterial;
+            }
+        }
 
         private void Awake()
         {
@@ -93,34 +110,27 @@ namespace NHSRemont.Gameplay
         /// Gets all rigidbodies which have not been destroyed
         /// </summary>
         public List<Rigidbody> GetAllRigidbodies()
-        {
-            List<Rigidbody> output = new List<Rigidbody>();
-            foreach (var rbCollection in rigidbodies.Values)
-            {
-                var node = rbCollection.First;
-                while (node != null)
-                {
-                    var next = node.Next;
-                    Rigidbody rb = node.Value;
-                    if (rb == null) //destroyed
-                    {
-                        rbCollection.Remove(node);
-                        RemoveRigidbodyFromCaches(rb);
-                    }
-                    else
-                        output.Add(rb);
-                    
-                    node = next;
-                }
-            }
+            => GetRigidbodiesFiltered(_ => true);
 
-            return output;
+        /// <summary>
+        /// Gets all rigidbodies near some point which have not been destroyed
+        /// </summary>
+        public List<Rigidbody> GetRigidbodiesNear(Vector3 pos, float maxDist)
+        {
+            float maxDistSqr = maxDist * maxDist;
+            return GetRigidbodiesFiltered(rb => (rb.position - pos).sqrMagnitude < maxDistSqr);
         }
 
         /// <summary>
         /// Gets all rigidbodies which have not been destroyed and are not asleep
         /// </summary>
         public List<Rigidbody> GetAwakeRigidbodies()
+            => GetRigidbodiesFiltered(rb => !rb.IsSleeping());
+
+        /// <summary>
+        /// Gets all rigidbodies that haven't been destroyed and for which the filter predicate returns true.
+        /// </summary>
+        public List<Rigidbody> GetRigidbodiesFiltered(Predicate<Rigidbody> filter)
         {
             List<Rigidbody> output = new List<Rigidbody>();
             foreach (var rbCollection in rigidbodies.Values)
@@ -135,7 +145,7 @@ namespace NHSRemont.Gameplay
                         rbCollection.Remove(node);
                         RemoveRigidbodyFromCaches(rb);
                     }
-                    else if(!rb.IsSleeping())
+                    else if(filter.Invoke(rb))
                         output.Add(rb);
                     
                     node = next;
@@ -156,14 +166,16 @@ namespace NHSRemont.Gameplay
                       "\n5m:" + explosionInfo.GetOverpressureAt(5f*5f) +
                       "\n10m:" + explosionInfo.GetOverpressureAt(10f*10f) +
                       "\n20m:" + explosionInfo.GetOverpressureAt(20f*20f) +
-                      "\n30m:" + explosionInfo.GetOverpressureAt(30f*30f));
+                      "\n30m:" + explosionInfo.GetOverpressureAt(30f*30f) +
+                      "\n50m:" + explosionInfo.GetOverpressureAt(50f*50f));
             Debug.Log(explosionInfo + " intensity: " +
                       "\n0m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(0f*0f, 1f) +
                       "\n3m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(3f*3f, 1f) +
                       "\n5m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(5f*5f, 1f) +
                       "\n10m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(10f*10f, 1f) +
                       "\n20m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(20f*20f, 1f) +
-                      "\n30m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(30f*30f, 1f));
+                      "\n30m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(30f*30f, 1f) +
+                      "\n50m:" + explosionInfo.GetEnergyCaughtBySurfaceAt(50f*50f, 1f));
             photonView.RPC(nameof(CreateExplosionRpc), RpcTarget.All,
                 explosionInfo.position, explosionInfo.blastRadius, explosionInfo.power_tnt, explosionInfo.energyFalloffExponent, explosionInfo.upwardsModifier);
         }
@@ -174,18 +186,14 @@ namespace NHSRemont.Gameplay
             ExplosionInfo explosionInfo = new ExplosionInfo((pos, blastRadius, (double)power_tnt*ExplosionInfo.joulesPerKgTnt, falloff, upwardsModifier));
             
             float blastRadiusSqr = explosionInfo.blastRadius * explosionInfo.blastRadius;
-            foreach (Rigidbody rb in GetAllRigidbodies())
+            foreach (Rigidbody rb in GetRigidbodiesNear(pos, blastRadiusSqr))
             {
-                if ((rb.position - explosionInfo.position).sqrMagnitude <= blastRadiusSqr)
-                {
-                    //if(rb.tag.Equals("Player")) continue;
-                    explosionInfo.ApplyToRigidbody(rb);
-                }
+                explosionInfo.ApplyToRigidbody(rb);
             }
             onExplosion?.Invoke(explosionInfo);
-            GameObject explosionEffect = Instantiate(explosionVFX);
+            GameObject explosionEffect = Instantiate(GameManager.instance.gameplayReferences.explosionVFX);
             explosionEffect.transform.position = explosionInfo.position;
-            float scale = explosionInfo.blastRadius / 320f;
+            float scale = explosionInfo.blastRadius / 245f;
             explosionEffect.transform.localScale = Vector3.one * scale;
             explosionEffect.GetComponent<VisualEffect>().Play();
         }

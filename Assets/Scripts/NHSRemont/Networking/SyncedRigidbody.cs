@@ -1,4 +1,5 @@
 using NHSRemont.Entity;
+using NHSRemont.Environment.Fractures;
 using NHSRemont.Utility;
 using Photon.Pun;
 using UnityEngine;
@@ -8,14 +9,6 @@ namespace NHSRemont.Networking
     [RequireComponent(typeof(Rigidbody))]
     public class SyncedRigidbody : MonoBehaviour
     {
-        private const float maxPosError = 0.1f;
-        private const float maxPosErrorSqr = maxPosError*maxPosError;
-        private const float velocityStillnessThreshold = 0.05f;
-        private const float velocityStillnessThresholdSqr = velocityStillnessThreshold * velocityStillnessThreshold;
-        private const float maxRotError = 2.5f;
-        private const float angularVelocityStillnessThresholdSqr =
-            (maxRotError * Mathf.Deg2Rad) * (maxRotError * Mathf.Deg2Rad);
-    
         public Rigidbody rb { get; private set; }
 
         private bool _isSimulatedLocally = false;
@@ -44,7 +37,7 @@ namespace NHSRemont.Networking
 
         private void Awake()
         {
-            this.rb = GetComponent<Rigidbody>();
+            this.rb = this.GetOrAddComponent<Rigidbody>();
             isSimulatedLocally = PhotonNetwork.IsMasterClient;
         }
 
@@ -70,7 +63,7 @@ namespace NHSRemont.Networking
                         Mathf.Max(lastReceivedStateAngularSpeed, rotError*10f)*Time.deltaTime);
                     rotError = Quaternion.Angle(transform.rotation, targetRotation);
                 
-                    if (posErrorSqr < maxPosErrorSqr && rotError < maxRotError)
+                    if (posErrorSqr < NetworkedPhysicsState.maxPosErrorSqr && rotError < NetworkedPhysicsState.maxRotError)
                     {
                         lerping = false;
                         if(!lastStateWasStill) //simulate locally
@@ -93,7 +86,7 @@ namespace NHSRemont.Networking
                 state.To(rb, lag);
             }
 
-            lastStateWasStill = state.velocity.sqrMagnitude < velocityStillnessThresholdSqr && state.angularVelocity.sqrMagnitude < angularVelocityStillnessThresholdSqr;
+            lastStateWasStill = state.IsStill();
             Vector3 targetEuler;
             (targetPosition, targetEuler) = state.GetPredictedTransformState(lag);
             targetRotation = Quaternion.Euler(targetEuler);

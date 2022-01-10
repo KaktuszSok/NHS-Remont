@@ -1,0 +1,108 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a487cf2b580748b48e708697c2c92726, type: 3}
+  m_Name: Player Explosion Damage Profile
+  m_EditorClassIdentifier: 
+  baseExplosionDamage: 100
+  tntToBaseDamageDistance:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 463.10318
+      outSlope: 463.10318
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.09556615
+    - serializedVersion: 3
+      time: 0.052
+      value: 3
+      inSlope: 6
+      outSlope: 6
+      tangentMode: 136
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 6
+      inSlope: 1.6812375
+      outSlope: 1.6812375
+      tangentMode: 136
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 6
+      value: 13
+      inSlope: 0.056112226
+      outSlope: 0.056112226
+      tangentMode: 136
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 500
+      value: 40
+      inSlope: 0.044187818
+      outSlope: 0.024770183
+      tangentMode: 1
+      weightedMode: 0
+      inWeight: 0.43364546
+      outWeight: 0.06319804
+    - serializedVersion: 3
+      time: 12000
+      value: 150
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 136
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  distanceFractionToDamage:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 3
+      inSlope: -2.0196705
+      outSlope: -2.0196705
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.0874999
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: -1.7374585
+      outSlope: -1.7374585
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 2
+      value: 0
+      inSlope: -0.034856334
+      outSlope: -0.034856334
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.52303666
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

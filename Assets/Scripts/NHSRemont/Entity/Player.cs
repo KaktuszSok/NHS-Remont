@@ -6,9 +6,15 @@ using UnityEngine.Rendering;
 
 namespace NHSRemont.Entity
 {
-    [RequireComponent(typeof(PhotonView), typeof(CharacterMovement))]
+    [RequireComponent(typeof(PhotonView))]
+    [RequireComponent(typeof(CharacterMovement))]
+    [RequireComponent(typeof(CharacterInventory))]
+    [RequireComponent(typeof(Health))]
     public class Player : MonoBehaviourPun
     {
+        /// <summary>
+        /// The transform which the camera will match its position and rotation to while the local player is spawned in.
+        /// </summary>
         public Transform cameraTarget;
         private CharacterMovement movement;
         public Health health { get; private set; }
@@ -23,6 +29,7 @@ namespace NHSRemont.Entity
                 movement = GetComponent<CharacterMovement>();
                 health = GetComponent<Health>();
                 inventory = GetComponentInChildren<CharacterInventory>();
+                //TODO remove with proper character model
                 transform.Find("Leg L").GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
                 transform.Find("Leg R").GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
             }
@@ -32,14 +39,27 @@ namespace NHSRemont.Entity
         {
             if (photonView.IsMine)
             {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                
                 MainCamera.target = cameraTarget;
                 health.onDeath += GameManager.instance.RespawnPlayerRandomly;
                 health.onHealthChanged += GameHUD.instance.UpdateHealthBar;
                 inventory.OnHotbarSlotSelected += GameHUD.instance.UpdateSelectedHotbarSlot;
                 inventory.onSlotContentsChanged += GameHUD.instance.UpdateHotbarItemDisplay;
+                inventory.lookingTransform = cameraTarget;
             }
         }
-        
+
+        private void OnDisable()
+        {
+            if (photonView.IsMine)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
+
         private void Update()
         {
             if (photonView.IsMine)
@@ -73,7 +93,7 @@ namespace NHSRemont.Entity
                 movement.JumpReleased();
             
             //Respawn
-            if (Input.GetKeyDown(KeyCode.R))
+            if (Input.GetKey(KeyCode.LeftShift) && Input.GetKeyDown(KeyCode.R))
             {
                 GameManager.instance.RespawnPlayerRandomly();
             }
@@ -87,6 +107,12 @@ namespace NHSRemont.Entity
             if (Input.GetKeyDown(KeyCode.Q))
             {
                 inventory.DropItemsInSlot(inventory.hotbarSlot, 1);
+            }
+            
+            //Punching
+            if (Input.GetMouseButtonDown(0))
+            {
+                inventory.Punch();
             }
         }
 
@@ -171,7 +197,7 @@ namespace NHSRemont.Entity
         
         private void ExplosionTestInput()
         {
-            if (Input.GetMouseButtonDown(0) || Input.GetMouseButton(3)) //MB3 = rapid fire
+            if (Input.GetMouseButtonDown(2) || Input.GetMouseButton(3)) //MB3 = rapid fire
             {
                 Transform camTransform = cameraTarget;
                 if (Physics.Raycast(camTransform.position, camTransform.forward, out RaycastHit hit, 4000f))

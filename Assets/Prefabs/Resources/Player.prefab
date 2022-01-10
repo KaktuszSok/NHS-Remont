@@ -359,6 +359,7 @@ GameObject:
   - component: {fileID: 11932089622146202}
   - component: {fileID: 8750403448002590822}
   - component: {fileID: -4425918090404404127}
+  - component: {fileID: 6372078177989796120}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -458,6 +459,7 @@ MonoBehaviour:
   observableSearch: 2
   ObservedComponents:
   - {fileID: 8750403448002590822}
+  - {fileID: 6372078177989796120}
   sceneViewId: 0
   InstantiationId: 0
   isRuntimeInstantiated: 0
@@ -492,6 +494,23 @@ MonoBehaviour:
   mass: 70
   maxHp: 100
   impactSFX: {fileID: 11400000, guid: 83d1ac1a760f5ac4b9c3070582891c32, type: 2}
+  explosionDamageProfile: {fileID: 11400000, guid: 1374a4f3c3e26d64ca62ef54d37056b5, type: 2}
+--- !u!114 &6372078177989796120
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2903328201021475664}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 67363c720ec14a85bd4fba43a869cf0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _size: 0
+  slots: []
+  _itemHolder: {fileID: 4249637500175624976}
+  lookingTransform: {fileID: 0}
 --- !u!1 &2903328201762183780
 GameObject:
   m_ObjectHideFlags: 0
@@ -549,8 +568,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3405972995937444141}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.493, y: -0.384, z: 0.832}
-  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
+  m_LocalPosition: {x: 0.422, y: -0.233, z: 0.31}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5714313298813268627}
@@ -568,7 +587,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67363c720ec14a85bd4fba43a869cf0e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  size: 9
+  _size: 0
   slots:
   - {fileID: 0}
   - {fileID: 0}
@@ -579,7 +598,8 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  itemHolder: {fileID: 4249637500175624976}
+  _itemHolder: {fileID: 4249637500175624976}
+  lookingTransform: {fileID: 0}
 --- !u!114 &691214606855244578
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Photon.Pun;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -39,7 +40,7 @@ namespace NHSRemont.Environment.Fractures
                 RecalculateCombinedMesh();
             }
         }
-        
+
         private void FixedUpdate()
         {
             if (graphChanged)
@@ -109,7 +110,7 @@ namespace NHSRemont.Environment.Fractures
         {
             chunks.Remove((ChunkNode)node);
             node.GetComponent<MeshRenderer>().enabled = true;
-            if (!graphChanged)
+            if (!graphChanged && PhotonNetwork.IsMasterClient) //play break off sound
             {
                 node.GetComponent<NHSWall>().material.breakOffSound.PlayRandomSoundAtPosition(node.transform.position);
             }

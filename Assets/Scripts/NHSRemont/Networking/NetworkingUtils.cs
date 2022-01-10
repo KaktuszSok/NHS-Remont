@@ -1,50 +1,62 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.IO;
+using System.IO.Compression;
+using Unity.Mathematics;
+using UnityEngine;
+using CompressionLevel = System.IO.Compression.CompressionLevel;
 
 namespace NHSRemont.Networking
 {
     public static class NetworkingUtils
     {
-        private static readonly Dictionary<ulong, ulong[]> sendToSingleClientCache = new();
+        public static void Write(this BinaryWriter writer, Vector3 value)
+        {
+            writer.Write(value.x);
+            writer.Write(value.y);
+            writer.Write(value.z);
+        }
+        
+        public static Vector3 ReadVector3(this BinaryReader reader)
+        {
+            return new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+        }
 
-        //TODO
-        // public static ClientRpcParams SendToSingleClient(ulong id)
-        // {
-        //     if (!sendToSingleClientCache.TryGetValue(id, out ulong[] targetIds))
-        //     {
-        //         targetIds = new[] {id};
-        //         sendToSingleClientCache.Add(id, targetIds);
-        //     }
-        //
-        //     return new ClientRpcParams
-        //     {
-        //         Send = new ClientRpcSendParams
-        //         {
-        //             TargetClientIds = targetIds
-        //         }
-        //     };
-        // }
-        //
-        // public static ClientRpcParams SendToAllButServer()
-        // {
-        //     var allIds = NetworkManager.Singleton.ConnectedClientsIds;
-        //     ulong[] targetIds = new ulong[allIds.Count-1];
-        //     int i = 0;
-        //     foreach (ulong id in allIds)
-        //     {
-        //         if (id == NetworkManager.Singleton.ServerClientId)
-        //             continue;
-        //
-        //         targetIds[i] = id;
-        //         i++;
-        //     }
-        //     
-        //     return new ClientRpcParams
-        //     {
-        //         Send = new ClientRpcSendParams
-        //         {
-        //             TargetClientIds = targetIds
-        //         }
-        //     };
-        // }
+        public static unsafe void WriteHalf(this BinaryWriter writer, half value)
+        {
+            ushort num = *(ushort*) &value;
+            writer.Write((byte) num);
+            writer.Write((byte) (num >> 8));
+        }
+
+        public static unsafe half ReadHalf(this BinaryReader reader)
+        {
+            ushort num = (ushort)reader.ReadInt16();
+            return *(half*) &num;
+        }
+        
+        //https://stackoverflow.com/a/10599797
+        public static byte[] CompressData(ReadOnlySpan<byte> data)
+        {
+            int uncompSize = data.Length;
+            using var compressStream = new MemoryStream();
+            using(var compressor = new DeflateStream(compressStream, CompressionLevel.Optimal))
+            {
+                compressor.Write(data);
+            }
+            var output = compressStream.ToArray();
+            Debug.Log("uncompressed: " + uncompSize + ", compressed: " + output.Length);
+            return output;
+        }
+        public static Stream DecompressStream(byte[] input)
+        {
+            var output = new MemoryStream();
+
+            using (var compressStream = new MemoryStream(input))
+            using (var decompressor = new DeflateStream(compressStream, CompressionMode.Decompress))
+                decompressor.CopyTo(output);
+
+            output.Position = 0;
+            return output;
+        }
     }
 }

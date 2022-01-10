@@ -38,6 +38,17 @@ MonoBehaviour:
   - CreateExplosionRpc
   - DestroyRpc
   - SynchroniseMap
+  - NodeDestroyedRPC
+  - SynchroniseFullStateRPC
+  - NodeRemoveRPC
+  - PunchRPC
+  - SpawnBulletRPC
+  - ShootRPC
+  - ShootEffectsRPC
+  - SpawnLocalProjectileRPC
+  - AddItemRPC
+  - DropItemRPC
+  - ClearSlotRPC
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1
