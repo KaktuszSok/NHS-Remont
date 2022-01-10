@@ -27,6 +27,7 @@ namespace NHSRemont.Environment.Fractures
         [Tooltip("VFX that plays when a wall with this material is damaged (e.g. shot at)")]
         public GameObject damageVFX;
 
+        [Tooltip("Prefab to use for holes in this wall. These are scaled by the bullet's hole size multiplier (1x for standard rifle rounds).")]
         public GameObject bulletHolePrefab;
         
         [FormerlySerializedAs("destroyVFXColour")]

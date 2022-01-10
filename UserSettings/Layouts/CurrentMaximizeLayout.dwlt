@@ -86,7 +86,7 @@ MonoBehaviour:
     m_HSlider: 0
     m_VSlider: 0
     m_IgnoreScrollWheelUntilClicked: 0
-    m_EnableMouseInput: 1
+    m_EnableMouseInput: 0
     m_EnableSliderZoomHorizontal: 0
     m_EnableSliderZoomVertical: 0
     m_UniformScale: 1
@@ -225,9 +225,9 @@ MonoBehaviour:
   m_SceneHierarchy:
     m_TreeViewState:
       scrollPos: {x: 0, y: 0}
-      m_SelectedIDs: 141b0000
+      m_SelectedIDs: 9ac51d00
       m_LastClickedID: 0
-      m_ExpandedIDs: 443bf7ffee6ff7fff26ff7ff0c70f7ff2070f7ff9eddf7ff382ffcff8086fdff8a86fdff8ef8ffffa60c0400f67904005c450b0028e10b00aee80c007a9e0d00c87b1900
+      m_ExpandedIDs: 4e09c8ffc2adcaff68d0ccff6c15ceff0642cfff6e27d3ffce15deff443bf7ffee6ff7fff26ff7ff0c70f7ff2070f7ff9eddf7ff382ffcff8086fdff8a86fdff8ef8ffffa60c0400f6790400aac70a005c450b0054990b0028e10b009e680c0014860c0026c70c0010e60c00aee80c007a180d007a9e0d00c87b19008609320078d63200be293300c2a53300c8723400f08f34006ad03400acf134000e21350006e477006cb378006a8079008a9d7900eedd7900a2fc790038ff7900a62e7a0046598e00305390007e749000e8a39000b20895003c0c9500701695009c3c9500ea0896008c8c9600721e9700c8cf970002f19700ce0e9800c44c98004a4d9800e8939800ec849c0052fd9c009ea69d00aae79d00aa2e9e00b83a9e00aa689e00c2059f0066169f005c6d9f00d43da0007056a400a0c5a50026e6a5006250a600c254a600bac9a60058cea60008eba6002402a700c051b300d8c0b400b44bb5001850b5006c7db500fec4b5009ec9b50038e6b50050fdb500
       m_RenameOverlay:
         m_UserAcceptedRename: 0
         m_Name: 
@@ -310,7 +310,7 @@ MonoBehaviour:
       floating: 0
       collapsed: 0
       displayed: 1
-      snapOffset: {x: -100, y: -25.600006}
+      snapOffset: {x: -101, y: -26}
       snapOffsetDelta: {x: 0, y: 0}
       snapCorner: 3
       id: Tool Settings
@@ -535,9 +535,9 @@ MonoBehaviour:
   m_PlayAudio: 0
   m_AudioPlay: 0
   m_Position:
-    m_Target: {x: 190.59898, y: -9.458813, z: 202.05103}
+    m_Target: {x: 244.02916, y: 13.144114, z: 140.27754}
     speed: 2
-    m_Value: {x: 190.59898, y: -9.458813, z: 202.05103}
+    m_Value: {x: 244.02916, y: 13.144114, z: 140.27754}
   m_RenderMode: 0
   m_CameraMode:
     drawMode: 0
@@ -584,13 +584,13 @@ MonoBehaviour:
     m_GridAxis: 1
     m_gridOpacity: 0.5
   m_Rotation:
-    m_Target: {x: -0.18448411, y: 0.2434504, z: -0.044736795, w: -0.9521171}
+    m_Target: {x: 0.24240705, y: 0.14413494, z: -0.03909512, w: 0.9596897}
     speed: 2
-    m_Value: {x: -0.18431547, y: 0.24322787, z: -0.044695903, w: -0.95124674}
+    m_Value: {x: -0.24240704, y: -0.14413492, z: 0.039095115, w: -0.9596896}
   m_Size:
-    m_Target: 50.8765
+    m_Target: 1.8866756
     speed: 2
-    m_Value: 50.8765
+    m_Value: 1.8866756
   m_Ortho:
     m_Target: 0
     speed: 2
@@ -739,22 +739,22 @@ MonoBehaviour:
     m_SkipHidden: 0
     m_SearchArea: 1
     m_Folders:
-    - Assets/Scripts/NHSRemont/Environment/Fractures
+    - Assets/Prefabs/Decals
     m_Globs: []
     m_OriginalText: 
   m_ViewMode: 1
   m_StartGridSize: 64
   m_LastFolders:
-  - Assets/Scripts/NHSRemont/Environment/Fractures
+  - Assets/Prefabs/Decals
   m_LastFoldersGridSize: -1
   m_LastProjectPath: D:\Unityshit Big\NHS Remont\NHS-Remont
   m_LockTracker:
     m_IsLocked: 0
   m_FolderTreeState:
     scrollPos: {x: 0, y: 645.2}
-    m_SelectedIDs: c83d0e00
-    m_LastClickedID: 933320
-    m_ExpandedIDs: 00000000b4880100b6880100b8880100ba880100bc880100be880100c0880100c2880100c4880100c6880100c8880100ca880100cc880100ce880100d0880100d2880100d4880100d6880100d8880100da8801002089010000ca9a3b
+    m_SelectedIDs: 96c51d00
+    m_LastClickedID: 1951126
+    m_ExpandedIDs: 00000000b4880100b6880100b8880100ba880100bc880100be880100c0880100c2880100c4880100c6880100c8880100ca880100cc880100ce880100d0880100d2880100d4880100d6880100d8880100da8801001889010000ca9a3b
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -807,9 +807,9 @@ MonoBehaviour:
       m_Icon: {fileID: 0}
       m_ResourceFile: 
   m_ListAreaState:
-    m_SelectedInstanceIDs: 141b0000
-    m_LastClickedInstanceID: 6932
-    m_HadKeyboardFocusLastEvent: 1
+    m_SelectedInstanceIDs: 9ac51d00
+    m_LastClickedInstanceID: 1951130
+    m_HadKeyboardFocusLastEvent: 0
     m_ExpandedInstanceIDs: c6230000
     m_RenameOverlay:
       m_UserAcceptedRename: 0

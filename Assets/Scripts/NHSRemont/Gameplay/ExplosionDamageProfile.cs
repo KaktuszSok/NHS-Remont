@@ -32,7 +32,6 @@ namespace NHSRemont.Gameplay
             float distance = (entity.position - explosionInfo.position).magnitude;
             float maxTNT = tntToBaseDamageDistance.keys[tntToBaseDamageDistance.length - 1].value;
             float baseDamageDistance = tntToBaseDamageDistance.Evaluate(Mathf.Min(explosionInfo.power_tnt, maxTNT));
-            Debug.Log(explosionInfo.power_tnt + "g = " + baseDamageDistance + "m");
             if (baseDamageDistance == 0)
                 return 0f;
             

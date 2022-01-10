@@ -265,6 +265,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  calibre: 7.62
 --- !u!1 &5807069841490946335
 GameObject:
   m_ObjectHideFlags: 0

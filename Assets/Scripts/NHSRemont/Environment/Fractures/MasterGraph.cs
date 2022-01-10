@@ -90,7 +90,7 @@ namespace NHSRemont.Environment.Fractures
 
             yield return null;
             //connect touching chunks
-            int q = 0;
+            int q = 0; //index of the current bounding box
             while (unprocessedChunks.TryDequeue(out ChunkNode chunk))
             {
                 Vector3[] verts = chunk.meshCollider.sharedMesh.vertices;
@@ -100,7 +100,7 @@ namespace NHSRemont.Environment.Fractures
                 }
                 Bounds boundsInflated = boundingBoxes[q];
                 boundsInflated.Expand(adjecentChunksProximity);
-                int j = q+1;
+                int j = q+1; //index of the bounding box we are checking against
                 foreach (ChunkNode other in unprocessedChunks) //check all other chunks that haven't been checked against this one
                 {
                     Bounds otherBounds = boundingBoxes[j];

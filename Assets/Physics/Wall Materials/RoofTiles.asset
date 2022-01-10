@@ -22,5 +22,6 @@ MonoBehaviour:
   destroySound: {fileID: 11400000, guid: 6a6d977dfdb962c42852432218322b08, type: 2}
   destroyVFX: {fileID: 5602567828551951313, guid: 0799f443e9987ae4dbfd1875169b029d, type: 3}
   damageVFX: {fileID: 5602567828551951313, guid: 81cd67694043594489361e47b5c1ef4f, type: 3}
+  bulletHolePrefab: {fileID: 356799668382506300, guid: 8af4b30ce71bfe849949bd160c3fd58c, type: 3}
   VFXColour: {r: 0.41675568, g: 0.4528302, b: 0.41224635, a: 1}
   VFXColourField: Colour

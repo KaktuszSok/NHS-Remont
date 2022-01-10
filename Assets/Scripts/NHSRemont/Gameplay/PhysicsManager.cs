@@ -309,7 +309,7 @@ namespace NHSRemont.Gameplay
         /// <summary>
         /// Gets the world-space bounds of a collider, even if it is disabled
         /// </summary>
-        public Bounds GetColliderBounds(Collider collider)
+        public static Bounds GetColliderBounds(Collider collider)
         {
             Bounds bounds = collider.bounds;
             if (bounds.extents == Vector3.zero)

@@ -1,10 +1,12 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using C5;
 using NHSRemont.Environment;
+using NHSRemont.Environment.Fractures;
 using NHSRemont.Utility;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace NHSRemont.Gameplay.Projectiles
 {
@@ -44,6 +46,9 @@ namespace NHSRemont.Gameplay.Projectiles
             new(0, 40f),
             new(200f, 20f)
         });
+        [Tooltip("Calibre of this bullet, in millimeters.")]
+        public float calibre = 7.62f;
+        public float holeSizeMult = 1f;
         
         //RUNTIME:
         private float muzzleVelocity;
@@ -120,15 +125,16 @@ namespace NHSRemont.Gameplay.Projectiles
                 TravelThroughCurrentMedium(transition.distance - travelled);
                 if(destroyed)
                     return;
-
+                
+                NHSWall wall = transition.hit.collider.GetComponent<NHSWall>();
+                if (wall)
+                {
+                    DoWallVisualsAndSFX(wall, transition);
+                }
+                
                 if (transition.isEntry)
                 {
                     truePosition = transition.hit.point;
-                    NHSWall wall = transition.hit.collider.GetComponent<NHSWall>();
-                    if (wall)
-                    {
-                        DoWallVisualsAndSFX(wall, transition);
-                    }
 
                     float speedFraction = vel / muzzleVelocity;
                     float damage = damageByDistance.EvaluateClamped(distTravelled)*speedFraction;
@@ -238,13 +244,82 @@ namespace NHSRemont.Gameplay.Projectiles
         /// </summary>
         private void DoWallVisualsAndSFX(NHSWall wall, MediumTransition transition)
         {
-            float volume = transition.isEntry ? 0.55f : 0.25f;
-            Vector3 outDirection = transition.isEntry ? -rb.velocity : rb.velocity;
+            Vector3 hitPoint = transition.hit.point;
+            Vector3 outDirection = (transition.isEntry ? -rb.velocity : rb.velocity).normalized;
             Quaternion visualsRotation = Quaternion.LookRotation(outDirection);
-            wall.material.PlayImpactVFXAndSFX(transition.hit.point, visualsRotation, volume, 1.3f);
             
+            //SFX/VFX
+            float volume = transition.isEntry ? 0.55f : 0.25f;
+            wall.material.PlayImpactVFXAndSFX(hitPoint, visualsRotation, volume, 1.3f);
+            
+            //Bullet hole
             //TODO pooling, limit amount of holes
-            GameObject bulletHole = Instantiate(wall.material.bulletHolePrefab, );
+            GameObject bulletHole = Instantiate(
+                wall.material.bulletHolePrefab, 
+                hitPoint + outDirection*0.0015f, 
+                Quaternion.LookRotation(transition.hit.normal), 
+                transition.hit.collider.transform);
+            bulletHole.transform.Rotate(0f, 0f, Random.value*360f, Space.Self); //random rotation
+            
+            Vector3 holeScale = wall.material.bulletHolePrefab.transform.localScale;
+            bulletHole.transform.localScale = holeScale * holeSizeMult;
+            DecalProjector decalProjector = bulletHole.GetComponent<DecalProjector>();
+            if (decalProjector)
+            {
+                Vector3 decalSize = holeScale * holeSizeMult;
+                decalSize.z = 0.005f;
+                decalProjector.size = decalSize;
+            }
+            
+            //make bullets stick to the correct(ish) chunk if the wall is fractured
+            Fracturable fracturable = transition.hit.collider.GetComponent<Fracturable>();
+            if (fracturable != null)
+            {
+                const float threshold = 1f;
+                var possibleParents = fracturable.allChunks.Where(IsChunkPossibleParent).ToArray();
+
+                ChunkNode trueParent = null;
+                if (possibleParents.Length == 1)
+                {
+                    trueParent = possibleParents[0];
+                }
+                else
+                {
+                    float closest = float.PositiveInfinity;
+                    foreach (ChunkNode possibleParent in possibleParents)
+                    {
+                        float sqDist = (hitPoint - possibleParent.meshCollider.ClosestPoint(hitPoint)).sqrMagnitude;
+                        Debug.Log(possibleParent + " sqDist is " + sqDist, possibleParent);
+                        if (sqDist < closest)
+                        {
+                            closest = sqDist;
+                            trueParent = possibleParent;
+                        }
+                    }
+                }
+
+                if (trueParent != null)
+                {
+                    trueParent.breakOffCallbackLate += _ =>
+                    {
+                        bulletHole.transform.SetParent(trueParent.transform);
+                    };
+                }
+                else
+                {
+                    Debug.LogWarning("Could not find true parent for bullet hole! (possible parents: " + possibleParents.Length + ")", bulletHole);
+                }
+
+                bool IsChunkPossibleParent(ChunkNode chunk)
+                {
+                    if (chunk == null || !chunk.frozen) return false;
+                    
+                    Bounds bounds = PhysicsManager.GetColliderBounds(chunk.meshCollider);
+                    bounds.Expand(threshold);
+                    Debug.Log(bounds);
+                    return bounds.Contains(hitPoint);
+                }
+            }
         }
     }
 }

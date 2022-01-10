@@ -10,7 +10,7 @@ namespace NHSRemont.Utility
             return arr[Random.Range(0, arr.Length)];
         }
 
-        public static string ToString<T>(this ICollection<T> arr)
+        public static string ToStringDetailed<T>(this ICollection<T> arr)
         {
             return $"[#={arr.Count} | {string.Join(", ", arr)}]";
         }

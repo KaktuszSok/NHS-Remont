@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using JetBrains.Annotations;
 using NHSRemont.Gameplay;
 using Photon.Pun;
 using UnityEngine;
@@ -36,15 +38,19 @@ namespace NHSRemont.Environment.Fractures
         public float mass { get; private set; }
         [SerializeField, HideInInspector]
         private FracturedRenderer chunksParent;
+        [NonSerialized]
         public ChunkNode[] allChunks;
         public bool fractured { get; private set; }
         private Fracturable combinedFracturable = null; //"this" if independent
         private readonly List<Fracturable> mergedChildren = new();
-        
+
         private void Awake()
         {
             collider = GetComponent<Collider>();
             wallComponent = GetComponent<NHSWall>();
+            
+            allChunks = chunksParent ? chunksParent.chunks.ToArray() : Array.Empty<ChunkNode>();
+            
             if (independent)
             {
                 //combine child graphs
@@ -210,9 +216,12 @@ namespace NHSRemont.Environment.Fractures
         public void OnDestroy()
         {
             PhysicsManager.instance.onExplosion -= OnExplosion;
-            foreach (ChunkNode chunkNode in allChunks)
+            if (allChunks != null)
             {
-                chunkNode.breakOffCallbackEarly -= OnChunkBreakOff;
+                foreach (ChunkNode chunkNode in allChunks)
+                {
+                    chunkNode.breakOffCallbackEarly -= OnChunkBreakOff;
+                }
             }
         }
 
@@ -228,22 +237,31 @@ namespace NHSRemont.Environment.Fractures
         {
             if(!PhotonNetwork.IsMasterClient)
                 return;
+            
+            if (independent)
+            {
+                //make children check if we get fractured
+                foreach (Fracturable mergedChild in mergedChildren)
+                {
+                    if(fractured) break;
+                    
+                    mergedChild.OnExplosion(explosionInfo);
+                }
+            }
 
-            if (!fractured && collider)
+            if (!fractured && collider && collider.enabled)
             {
                 float chunkMass = mass / chunks;
                 float impulseToFracture = material.density * material.internalStrength;
                 (Vector3 impulse, _, float sqDist) =
                     explosionInfo.CalculateImpulseAndPoint(transform, collider, chunkMass);
-                
+
                 if (impulse.sqrMagnitude >= impulseToFracture * impulseToFracture
                     || explosionInfo.GetOverpressureAt(sqDist) > material.density*material.internalStrength/1000f)
                     Fracture();
-                else
-                    return;
             }
 
-            if (independent)
+            if (independent && fractured)
             {
                 //forward explosion to chunks
                 foreach (ChunkNode chunkNode in allChunks)
@@ -266,7 +284,9 @@ namespace NHSRemont.Environment.Fractures
             if (impulse.sqrMagnitude >= impulseToFracture*impulseToFracture)
             {
                 Fracture();
-                combinedFracturable.GetClosestChunkTo(point).gameObject.ApplyImpulseAtPoint(impulse, point);
+                ChunkNode closestChunk = combinedFracturable.GetClosestChunkTo(point);
+                if(closestChunk != null)
+                    closestChunk.gameObject.ApplyImpulseAtPoint(impulse, point);
             }
         }
 
@@ -281,12 +301,21 @@ namespace NHSRemont.Environment.Fractures
                 Fracture();
         }
         
-        public ChunkNode GetClosestChunkTo(Vector3 point)
+        /// <summary>
+        /// Gets the chunk who's centre is closest to some point
+        /// </summary>
+        /// <param name="point">The point in question</param>
+        /// <param name="ignoreLooseChunks">Should chunks that have been broken off be ignored?</param>
+        [CanBeNull]
+        public ChunkNode GetClosestChunkTo(Vector3 point, bool ignoreLooseChunks=false)
         {
             ChunkNode closest = null;
             float closestSqDist = float.PositiveInfinity;
             foreach (ChunkNode chunk in allChunks)
             {
+                if(chunk == null) continue;
+                if(ignoreLooseChunks && !chunk.frozen) continue;
+
                 float sqDist = (chunk.transform.position - point).sqrMagnitude;
                 if (sqDist < closestSqDist)
                 {
